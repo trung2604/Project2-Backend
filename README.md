@@ -130,6 +130,6 @@ BookStore/
 Dự án này được cấp phép theo MIT License - xem file [LICENSE](LICENSE) để biết thêm chi tiết.
 
 ## Contact
-Trung Nguyen - [@trung2604](https://github.com/trung2604)
+Trung Do - [@trung2604](https://github.com/trung2604)
 
 Project Link: [https://github.com/trung2604/Project2](https://github.com/trung2604/Project2) 
