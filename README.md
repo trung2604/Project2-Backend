@@ -1,125 +1,84 @@
-# BookStore Project
+# BookStore Backend
 
 ## Overview
-BookStore là một ứng dụng web toàn diện cho phép quản lý và mua sắm sách trực tuyến. Dự án được xây dựng với kiến trúc microservices, sử dụng Spring Boot cho backend, React cho frontend và MongoDB làm cơ sở dữ liệu.
+Đây là source code backend cho hệ thống BookStore, xây dựng bằng Spring Boot và MongoDB. Backend cung cấp RESTful API cho các chức năng quản lý người dùng, sách, đơn hàng, phân quyền, upload ảnh (Cloudinary), v.v.
 
 ## Tech Stack
 
-### Backend
-- **Framework**: Spring Boot
-- **Language**: Java
-- **Database**: MongoDB
-- **Build Tool**: Maven
-- **API Documentation**: Swagger/OpenAPI
-
-### Frontend
-- **Framework**: React.js
-- **State Management**: Redux/Context API
-- **UI Library**: Material-UI/Ant Design
-- **Build Tool**: npm/yarn
-
-### Database
-- **Database**: MongoDB
-- **Database Management**: MongoDB Compass
+- **Framework:** Spring Boot
+- **Language:** Java
+- **Database:** MongoDB
+- **Build Tool:** Maven
+- **API Documentation:** Swagger/OpenAPI
 
 ## Tính năng chính
 
-### Quản lý sách
-- Thêm, sửa, xóa thông tin sách
-- Tìm kiếm và lọc sách theo nhiều tiêu chí
-- Quản lý danh mục sách
-- Quản lý kho sách
+- Đăng ký, đăng nhập, xác thực JWT
+- Phân quyền người dùng (Admin, User)
+- Quản lý sách, danh mục, kho
+- Quản lý người dùng, đơn hàng
+- Upload và quản lý avatar (Cloudinary)
+- Phân trang, tìm kiếm, lọc dữ liệu
 
-### Quản lý người dùng
-- Đăng ký và đăng nhập
-- Phân quyền người dùng (Admin, Customer)
-- Quản lý thông tin cá nhân
-- Quản lý đơn hàng
-
-### Giỏ hàng và thanh toán
-- Thêm/xóa sách vào giỏ hàng
-- Quản lý giỏ hàng
-- Xử lý đơn hàng
-- Tích hợp thanh toán
-
-## Cài đặt và Chạy dự án
+## Cài đặt & Chạy dự án
 
 ### Yêu cầu hệ thống
 - Java JDK 17 trở lên
-- Node.js 16.x trở lên
 - MongoDB 5.0 trở lên
 - Maven 3.8.x trở lên
-- npm hoặc yarn
 
-### Backend Setup
-1. Clone repository:
-```bash
-git clone https://github.com/trung2604/Project2.git
-cd BookStore
-```
+### Hướng dẫn cài đặt
 
-2. Cấu hình MongoDB:
-- Cài đặt MongoDB
-- Tạo database "bookstore"
-- Cập nhật thông tin kết nối trong `application.properties`
+1. **Clone repository:**
+    ```bash
+    git clone https://github.com/trung2604/Project2.git
+    cd BookStore
+    ```
 
-3. Chạy ứng dụng Spring Boot:
-```bash
-./mvnw spring-boot:run
-```
+2. **Cấu hình MongoDB & Cloudinary:**
+    - Tạo database MongoDB (ví dụ: `bookstore`)
+    - Tạo file `src/main/resources/application.properties` (không commit file này lên git)
+    - Tham khảo file `application.properties.example` để biết các key cần cấu hình:
+      ```properties
+      spring.data.mongodb.uri=
+      cloudinary.cloud-name=
+      cloudinary.api-key=
+      cloudinary.api-secret=
+      jwt.secret=
+      ```
 
-### Frontend Setup
-1. Di chuyển vào thư mục frontend:
-```bash
-cd frontend
-```
+3. **Chạy ứng dụng:**
+    ```bash
+    ./mvnw spring-boot:run
+    # hoặc
+    mvn spring-boot:run
+    ```
 
-2. Cài đặt dependencies:
-```bash
-npm install
-# hoặc
-yarn install
-```
-
-3. Chạy ứng dụng React:
-```bash
-npm start
-# hoặc
-yarn start
-```
-
-## API Documentation
-API documentation có sẵn tại: `http://localhost:8080/swagger-ui.html` sau khi chạy backend
+4. **Truy cập API docs:**
+    - Swagger UI: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
 
 ## Cấu trúc Project
 
 ```
 BookStore/
-├── src/                    # Backend source code
+├── src/
 │   ├── main/
-│   │   ├── java/
-│   │   │   └── com/project2/BookStore/
-│   │   │       ├── controllers/
-│   │   │       ├── models/
-│   │   │       ├── repositories/
-│   │   │       ├── services/
-│   │   │       └── BookStoreApplication.java
+│   │   ├── java/com/project2/BookStore/
 │   │   └── resources/
-│   │       └── application.properties
 │   └── test/
-├── frontend/              # Frontend source code
-│   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── services/
-│   │   └── App.js
-│   ├── package.json
-│   └── README.md
 ├── pom.xml
 └── README.md
 ```
 
-## Contributing
+## Một số API mẫu
+
+- **Đăng ký:** `POST /api/bookStore/user/register`
+- **Đăng nhập:** `POST /api/bookStore/user/login`
+- **Phân trang user:** `GET /api/bookStore/user/paged?current=1&pageSize=10`
+- **Upload avatar:** `POST /api/bookStore/user/avatar/upload`
+
+
+## Đóng góp
 1. Fork repository
 2. Tạo branch mới (`git checkout -b feature/AmazingFeature`)
 3. Commit thay đổi (`git commit -m 'Add some AmazingFeature'`)
@@ -127,9 +86,7 @@ BookStore/
 5. Tạo Pull Request
 
 ## License
-Dự án này được cấp phép theo MIT License - xem file [LICENSE](LICENSE) để biết thêm chi tiết.
+MIT License - xem file [LICENSE](LICENSE) để biết thêm chi tiết.
 
 ## Contact
-Trung Do - [@trung2604](https://github.com/trung2604)
-
-Project Link: [https://github.com/trung2604/Project2](https://github.com/trung2604/Project2) 
+Trung Do - [@trung2604](https://github.com/trung2604) 
