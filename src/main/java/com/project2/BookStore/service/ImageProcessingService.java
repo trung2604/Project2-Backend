@@ -19,6 +19,7 @@ import java.util.List;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.nio.file.Files;
+import com.project2.BookStore.model.Book;
 
 @Service
 public class ImageProcessingService {
@@ -215,5 +216,61 @@ public class ImageProcessingService {
             return lastPart.substring(0, lastPart.lastIndexOf("."));
         }
         return null;
+    }
+
+    public String uploadImageToCloudinary(org.springframework.web.multipart.MultipartFile file) {
+        try {
+            Map uploadResult = cloudinary.uploader().upload(file.getBytes(), ObjectUtils.emptyMap());
+            return uploadResult.get("secure_url").toString();
+        } catch (Exception e) {
+            throw new RuntimeException("Lỗi upload ảnh: " + e.getMessage());
+        }
+    }
+
+    public Book.Image processAndUploadBookImage(MultipartFile file) {
+        validateFile(file);
+        File tempFile = null;
+        try {
+            tempFile = File.createTempFile("book_", getFileExtension(file.getOriginalFilename()));
+            file.transferTo(tempFile);
+            String outputFormat = getImageFormat(file);
+            String baseFilename = "book_" + System.currentTimeMillis();
+            BufferedImage originalImage = ImageIO.read(tempFile);
+            if (originalImage == null) {
+                throw new BadRequestException("Không thể đọc file ảnh. Vui lòng kiểm tra lại định dạng file.");
+            }
+            // Thumbnail (150x150)
+            ByteArrayOutputStream thumbnailStream = new ByteArrayOutputStream();
+            Thumbnails.of(originalImage)
+                    .size(150, 150)
+                    .outputFormat(outputFormat)
+                    .toOutputStream(thumbnailStream);
+            String thumbnailUrl = uploadToCloudinary(thumbnailStream.toByteArray(), baseFilename + "_thumb", outputFormat);
+            // Medium (300x300)
+            ByteArrayOutputStream mediumStream = new ByteArrayOutputStream();
+            Thumbnails.of(originalImage)
+                    .size(300, 300)
+                    .outputFormat(outputFormat)
+                    .toOutputStream(mediumStream);
+            String mediumUrl = uploadToCloudinary(mediumStream.toByteArray(), baseFilename + "_medium", outputFormat);
+            // Original (800x800)
+            ByteArrayOutputStream originalStream = new ByteArrayOutputStream();
+            Thumbnails.of(originalImage)
+                    .size(800, 800)
+                    .outputFormat(outputFormat)
+                    .toOutputStream(originalStream);
+            String originalUrl = uploadToCloudinary(originalStream.toByteArray(), baseFilename + "_original", outputFormat);
+            return new Book.Image(thumbnailUrl, mediumUrl, originalUrl, outputFormat, file.getSize());
+        } catch (IOException e) {
+            throw new BadRequestException("Không thể xử lý ảnh: " + e.getMessage());
+        } finally {
+            if (tempFile != null && tempFile.exists()) {
+                try {
+                    Files.delete(tempFile.toPath());
+                } catch (IOException e) {
+                    System.err.println("Error deleting temporary file: " + e.getMessage());
+                }
+            }
+        }
     }
 } 

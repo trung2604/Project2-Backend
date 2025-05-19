@@ -20,4 +20,5 @@ public interface UserService {
     void updateUserAvatar(String userId, AvatarDTO avatarDTO);
     User getUserById(String userId);
     Page<UserResponseDTO> getUsersPaged(Pageable pageable);
+    UserResponseDTO getUserByEmail(String email);
 }

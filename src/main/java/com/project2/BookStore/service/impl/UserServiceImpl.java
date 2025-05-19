@@ -60,7 +60,7 @@ public class UserServiceImpl implements UserService {
         if (user == null || !passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
             throw new BadRequestException("Email hoặc mật khẩu không đúng");
         }
-        String token = jwtUtil.generateToken(user.getEmail());
+        String token = jwtUtil.generateToken(user.getEmail(), user.getRole());
         UserResponseDTO userResponseDTO = new UserResponseDTO(user);
         return new LoginResponseDTO(token, userResponseDTO);
     }
@@ -113,7 +113,15 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Page<UserResponseDTO> getUsersPaged(Pageable pageable) {
-        Page<User> page = userRepository.findAll(pageable);
-        return page.map(UserResponseDTO::new);
+        return userRepository.findAll(pageable).map(UserResponseDTO::new);
+    }
+
+    @Override
+    public UserResponseDTO getUserByEmail(String email) {
+        User user = userRepository.findByEmail(email);
+        if (user == null) {
+            throw new BadRequestException("Không tìm thấy user với email: " + email);
+        }
+        return new UserResponseDTO(user);
     }
 }
