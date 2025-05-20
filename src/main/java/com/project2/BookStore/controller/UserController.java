@@ -212,4 +212,17 @@ public class UserController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponseDTO<UserResponseDTO>> getUserById(@PathVariable String id) {
+        try {
+            User user = userService.getUserById(id);
+            UserResponseDTO userResponseDTO = new UserResponseDTO(user);
+            ApiResponseDTO<UserResponseDTO> response = new ApiResponseDTO<>(200, "", userResponseDTO);
+            return ResponseEntity.ok(response);
+        } catch (BadRequestException e) {
+            ApiResponseDTO<UserResponseDTO> response = new ApiResponseDTO<>(404, e.getMessage(), null);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        }
+    }
 }

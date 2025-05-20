@@ -17,15 +17,14 @@ public class AdminInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        boolean hasAdmin = userRepository.findAll().stream()
-            .anyMatch(u -> "ADMIN".equalsIgnoreCase(u.getRole()));
+        boolean hasAdmin = userRepository.findByEmail("admin@bookstore.com") != null;
         if (!hasAdmin) {
             User admin = new User();
             admin.setFullName("Admin");
             admin.setEmail("admin@bookstore.com");
             admin.setPassword(passwordEncoder.encode("admin123"));
             admin.setPhone("0123456789");
-            admin.setRole("ADMIN");
+            admin.setRole("ROLE_ADMIN");
             admin.setActive(true);
             admin.setCreatedAt(new Date());
             admin.setUpdatedAt(new Date());

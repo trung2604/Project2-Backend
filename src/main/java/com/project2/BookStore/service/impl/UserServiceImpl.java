@@ -46,7 +46,7 @@ public class UserServiceImpl implements UserService {
         user.setEmail(registerRequest.getEmail());
         user.setPassword(passwordEncoder.encode(registerRequest.getPassword()));
         user.setPhone(registerRequest.getPhoneNumber());
-        user.setRole("USER");
+        user.setRole("ROLE_USER");
         user.setActive(true);
         user.setCreatedAt(new Date());
         user.setUpdatedAt(new Date());
@@ -73,6 +73,11 @@ public class UserServiceImpl implements UserService {
     public UserResponseDTO updateUser(UpdateUserRequest req) {
         User user = userRepository.findById(req.getId())
             .orElseThrow(() -> new BadRequestException("ID không tồn tại"));
+            
+        if ("ROLE_ADMIN".equalsIgnoreCase(user.getRole())) {
+            throw new BadRequestException("Không thể cập nhật thông tin tài khoản admin!");
+        }
+        
         user.setFullName(req.getFullName());
         user.setPhone(req.getPhone());
         user.setUpdatedAt(new Date());
@@ -84,7 +89,7 @@ public class UserServiceImpl implements UserService {
     public void deleteUser(String id) {
         User user = userRepository.findById(id)
             .orElseThrow(() -> new BadRequestException("User không tồn tại"));
-        if ("ADMIN".equalsIgnoreCase(user.getRole())) {
+        if ("ROLE_ADMIN".equalsIgnoreCase(user.getRole())) {
             throw new BadRequestException("Không thể xóa tài khoản admin!");
         }
         userRepository.deleteById(id);

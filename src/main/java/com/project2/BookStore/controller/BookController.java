@@ -4,6 +4,7 @@ import com.project2.BookStore.dto.BookSimpleDTO;
 import com.project2.BookStore.dto.ApiResponseDTO;
 import com.project2.BookStore.model.Book;
 import com.project2.BookStore.service.BookService;
+import com.project2.BookStore.exception.BookException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -13,6 +14,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import java.util.HashMap;
 import java.util.Map;
+import java.io.IOException;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -83,5 +85,46 @@ public class BookController {
         data.put("result", result);
         ApiResponseDTO<Map<String, Object>> response = new ApiResponseDTO<>(200, "", data);
         return ResponseEntity.ok(response);
+    }
+
+    @PutMapping("/update")
+    public ResponseEntity<ApiResponseDTO<Book>> updateBook(@RequestBody Book book) {
+        try {
+            Book updatedBook = bookService.updateBook(book);
+            ApiResponseDTO<Book> response = new ApiResponseDTO<>(
+                200,
+                "Cập nhật sách thành công",
+                updatedBook
+            );
+            return ResponseEntity.ok(response);
+        } catch (BookException e) {
+            ApiResponseDTO<Book> response;
+            if (e.getMessage().contains("Không tìm thấy sách")) {
+                response = new ApiResponseDTO<>(404, e.getMessage(), null);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            } else {
+                response = new ApiResponseDTO<>(400, e.getMessage(), null);
+                return ResponseEntity.badRequest().body(response);
+            }
+        } catch (Exception e) {
+            ApiResponseDTO<Book> response = new ApiResponseDTO<>(
+                500,
+                "Lỗi khi cập nhật sách: " + e.getMessage(),
+                null
+            );
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+        }
+    }
+
+    @DeleteMapping("/delete/{id}")
+    public ResponseEntity<Void> deleteBook(@PathVariable String id) {
+        bookService.deleteBook(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/image")
+    public ResponseEntity<Book> updateBookImage(@RequestParam("id") String id, @RequestParam("image") MultipartFile image) throws IOException {
+        Book updatedBook = bookService.updateBookImage(id, image);
+        return ResponseEntity.ok(updatedBook);
     }
 } 
