@@ -34,30 +34,67 @@ public class SecurityConfig {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .headers(headers -> headers
+                        .frameOptions(frame -> frame.sameOrigin())
+                        .xssProtection(xss -> {})
+                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'; frame-ancestors 'self'; form-action 'self'"))
+                )
+                .sessionManagement(session -> session
+                        .maximumSessions(1)
+                        .expiredUrl("/api/bookStore/user/login?expired")
+                )
                 .authorizeHttpRequests(auth -> auth
                         // Public APIs
                         .requestMatchers(
                                 "/api/bookStore/user/login",
                                 "/api/bookStore/user/register",
                                 "/api/bookStore/user/account",
-                                "/api/bookStore/user/logout"
+                                "/api/bookStore/user/logout",
+                                "/api/bookStore/book/simple",
+                                "/api/bookStore/book/paged",
+                                "/api/bookStore/book/category/*"
                         ).permitAll()
-                        // Chỉ ADMIN mới được add book, update book, delete book, update book image, xem user, xóa user
+                        // Chỉ ADMIN mới được truy cập
                         .requestMatchers(
                                 "/api/bookStore/book/add",
                                 "/api/bookStore/book/update",
-                                "/api/bookStore/book/delete/**",
+                                "/api/bookStore/book/delete/*",
                                 "/api/bookStore/book/image",
                                 "/api/bookStore/user",
                                 "/api/bookStore/user/paged",
-                                "/api/bookStore/user/delete/**"
+                                "/api/bookStore/user/delete/*",
+                                "/api/bookStore/category/*",
+                                "/api/bookStore/statistics/*",
+                                // Order APIs chỉ cho ADMIN
+                                "/api/orders/*/status",
+                                "/api/order-items/*"
                         ).hasRole("ADMIN")
+                        // APIs yêu cầu xác thực (không cần role ADMIN)
+                        .requestMatchers(
+                                "/api/bookStore/cart/*",
+                                "/api/orders",
+                                "/api/orders/*",
+                                "/api/orders/user",
+                                "/api/orders/*/cancel"
+                        ).authenticated()
                         // Các API còn lại yêu cầu xác thực
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.decoder(jwtDecoder())
                                       .jwtAuthenticationConverter(jwtAuthenticationConverter()))
+                )
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.setStatus(401);
+                            response.getWriter().write("{\"error\": \"Unauthorized\", \"message\": \"" + authException.getMessage() + "\"}");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setContentType("application/json;charset=UTF-8");
+                            response.setStatus(403);
+                            response.getWriter().write("{\"error\": \"Forbidden\", \"message\": \"Access denied\"}");
+                        })
                 );
         return http.build();
     }

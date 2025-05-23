@@ -2,6 +2,7 @@ package com.project2.BookStore.controller;
 
 import com.project2.BookStore.model.CartItem;
 import com.project2.BookStore.dto.CartItemDTO;
+import com.project2.BookStore.dto.CartItemResponseDTO;
 import com.project2.BookStore.dto.ApiResponseDTO;
 import com.project2.BookStore.dto.CartItemDetailDTO;
 import com.project2.BookStore.service.CartService;
@@ -31,43 +32,56 @@ public class CartController {
             throw new BadRequestException("Không tìm thấy token xác thực");
         }
         String token = authHeader.substring(7);
-        return jwtUtil.getEmailFromToken(token);
+        return jwtUtil.getUserIdFromToken(token);
+    }
+
+    private CartItemResponseDTO convertToResponseDTO(CartItem cartItem) {
+        CartItemResponseDTO dto = new CartItemResponseDTO();
+        dto.setBookId(cartItem.getBookId());
+        dto.setBookTitle(cartItem.getBookTitle());
+        dto.setBookImage(cartItem.getBookImage());
+        dto.setPrice(cartItem.getPrice());
+        dto.setQuantity(cartItem.getQuantity());
+        dto.setTotalPrice(cartItem.getTotalPrice());
+        return dto;
     }
 
     @PostMapping("/add")
-    public ResponseEntity<ApiResponseDTO<CartItem>> addToCart(
+    public ResponseEntity<ApiResponseDTO<CartItemResponseDTO>> addToCart(
             @Valid @RequestBody CartItemDTO cartItemDTO,
             HttpServletRequest request) {
         try {
             String userId = getUserIdFromToken(request);
             CartItem cartItem = cartService.addToCart(userId, cartItemDTO);
-            ApiResponseDTO<CartItem> response = new ApiResponseDTO<>(
+            CartItemResponseDTO responseDTO = convertToResponseDTO(cartItem);
+            ApiResponseDTO<CartItemResponseDTO> response = new ApiResponseDTO<>(
                 200,
                 "Thêm sách vào giỏ hàng thành công!",
-                cartItem
+                responseDTO
             );
             return ResponseEntity.ok(response);
         } catch (BadRequestException e) {
-            ApiResponseDTO<CartItem> response = new ApiResponseDTO<>(400, e.getMessage(), null);
+            ApiResponseDTO<CartItemResponseDTO> response = new ApiResponseDTO<>(400, e.getMessage(), null);
             return ResponseEntity.badRequest().body(response);
         }
     }
 
     @PutMapping("/update")
-    public ResponseEntity<ApiResponseDTO<CartItem>> updateCartItem(
+    public ResponseEntity<ApiResponseDTO<CartItemResponseDTO>> updateCartItem(
             @Valid @RequestBody CartItemDTO cartItemDTO,
             HttpServletRequest request) {
         try {
             String userId = getUserIdFromToken(request);
             CartItem cartItem = cartService.updateCartItem(userId, cartItemDTO);
-            ApiResponseDTO<CartItem> response = new ApiResponseDTO<>(
+            CartItemResponseDTO responseDTO = convertToResponseDTO(cartItem);
+            ApiResponseDTO<CartItemResponseDTO> response = new ApiResponseDTO<>(
                 200,
                 "Cập nhật giỏ hàng thành công!",
-                cartItem
+                responseDTO
             );
             return ResponseEntity.ok(response);
         } catch (BadRequestException e) {
-            ApiResponseDTO<CartItem> response = new ApiResponseDTO<>(400, e.getMessage(), null);
+            ApiResponseDTO<CartItemResponseDTO> response = new ApiResponseDTO<>(400, e.getMessage(), null);
             return ResponseEntity.badRequest().body(response);
         }
     }

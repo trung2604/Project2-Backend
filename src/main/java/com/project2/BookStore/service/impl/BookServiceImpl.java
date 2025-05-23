@@ -15,8 +15,13 @@ import org.springframework.web.multipart.MultipartFile;
 import com.project2.BookStore.service.ImageProcessingService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageImpl;
 import java.io.IOException;
-import java.util.Date;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import java.time.LocalDateTime;
+import java.util.stream.Collectors;
 
 @Service
 public class BookServiceImpl implements BookService {
@@ -27,6 +32,9 @@ public class BookServiceImpl implements BookService {
 
     @Autowired
     private ImageProcessingService imageProcessingService;
+
+    @Autowired
+    private MongoTemplate mongoTemplate;
 
     @Override
     public List<Book> getAllBooks() {
@@ -43,7 +51,7 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
-    public BookSimpleDTO addBookWithImage(MultipartFile file, String mainText, String author, long price, int sold, int quantity, String category) {
+    public BookSimpleDTO addBookWithImage(MultipartFile file, String mainText, String author, long price, int sold, int quantity, String categoryId) {
         // Validate các trường không được null hoặc rỗng
         if (mainText == null || mainText.trim().isEmpty()) {
             throw new RuntimeException("Trường mainText không được để trống.");
@@ -51,8 +59,8 @@ public class BookServiceImpl implements BookService {
         if (author == null || author.trim().isEmpty()) {
             throw new RuntimeException("Trường author không được để trống.");
         }
-        if (category == null || category.trim().isEmpty()) {
-            throw new RuntimeException("Trường category không được để trống.");
+        if (categoryId == null || categoryId.trim().isEmpty()) {
+            throw new RuntimeException("Trường categoryId không được để trống.");
         }
         // Kiểm tra trùng tên sách
         if (bookRepository.existsByMainText(mainText)) {
@@ -76,9 +84,9 @@ public class BookServiceImpl implements BookService {
         book.setPrice(price);
         book.setSold(sold);
         book.setQuantity(quantity);
-        book.setCategory(category);
-        book.setCreatedAt(new java.util.Date());
-        book.setUpdatedAt(new java.util.Date());
+        book.setCategoryId(categoryId);
+        book.setCreatedAt(LocalDateTime.now());
+        book.setUpdatedAt(LocalDateTime.now());
         Book saved = bookRepository.save(book);
         return new BookSimpleDTO(
             saved.getId(),
@@ -88,13 +96,8 @@ public class BookServiceImpl implements BookService {
             saved.getPrice(),
             saved.getSold(),
             saved.getQuantity(),
-            saved.getCategory()
+            saved.getCategoryId()
         );
-    }
-
-    @Override
-    public Page<Book> getBooksPaged(Pageable pageable) {
-        return bookRepository.findAll(pageable);
     }
 
     @Override
@@ -153,8 +156,8 @@ public class BookServiceImpl implements BookService {
         if (book.getAuthor() == null || book.getAuthor().trim().isEmpty()) {
             throw new BookException("Trường author không được để trống.");
         }
-        if (book.getCategory() == null || book.getCategory().trim().isEmpty()) {
-            throw new BookException("Trường category không được để trống.");
+        if (book.getCategoryId() == null || book.getCategoryId().trim().isEmpty()) {
+            throw new BookException("Trường categoryId không được để trống.");
         }
         if (book.getPrice() <= 0) {
             throw new BookException("Giá (price) phải lớn hơn 0.");
@@ -173,8 +176,8 @@ public class BookServiceImpl implements BookService {
         existingBook.setPrice(newBook.getPrice());
         existingBook.setSold(newBook.getSold());
         existingBook.setQuantity(newBook.getQuantity());
-        existingBook.setCategory(newBook.getCategory());
-        existingBook.setUpdatedAt(new Date());
+        existingBook.setCategoryId(newBook.getCategoryId());
+        existingBook.setUpdatedAt(LocalDateTime.now());
 
         // Chỉ cập nhật ảnh nếu có ảnh mới
         if (newBook.getImage() != null) {
@@ -189,7 +192,7 @@ public class BookServiceImpl implements BookService {
         target.setPrice(source.getPrice());
         target.setSold(source.getSold());
         target.setQuantity(source.getQuantity());
-        target.setCategory(source.getCategory());
+        target.setCategoryId(source.getCategoryId());
         target.setImage(source.getImage());
         target.setCreatedAt(source.getCreatedAt());
         target.setUpdatedAt(source.getUpdatedAt());
@@ -207,5 +210,53 @@ public class BookServiceImpl implements BookService {
         Book.Image newImage = imageProcessingService.processAndUploadBookImage(image);
         book.setImage(newImage);
         return bookRepository.save(book);
+    }
+
+    @Override
+    public Page<BookSimpleDTO> getBooksPaged(Pageable pageable) {
+        return bookRepository.findAll(pageable)
+            .map(book -> new BookSimpleDTO(
+                book.getId(),
+                book.getImage(),
+                book.getMainText(),
+                book.getAuthor(),
+                book.getPrice(),
+                book.getSold(),
+                book.getQuantity(),
+                book.getCategoryId()
+            ));
+    }
+
+    @Override
+    public Page<BookSimpleDTO> getBooksByCategoryPaged(String categoryId, Pageable pageable) {
+        try {
+            // Tạo query để tìm kiếm theo categoryId
+            Query query = new Query();
+            query.addCriteria(Criteria.where("categoryId").is(categoryId));
+            query.with(pageable);
+            
+            // Thực hiện tìm kiếm
+            List<Book> books = mongoTemplate.find(query, Book.class);
+            long total = mongoTemplate.count(Query.of(query).limit(-1).skip(-1), Book.class);
+            
+            // Chuyển đổi sang DTO
+            List<BookSimpleDTO> bookDTOs = books.stream()
+                .map(book -> new BookSimpleDTO(
+                    book.getId(),
+                    book.getImage(),
+                    book.getMainText(),
+                    book.getAuthor(),
+                    book.getPrice(),
+                    book.getSold(),
+                    book.getQuantity(),
+                    book.getCategoryId()
+                ))
+                .collect(Collectors.toList());
+                
+            return new PageImpl<>(bookDTOs, pageable, total);
+        } catch (Exception e) {
+            logger.error("Lỗi khi lấy danh sách sách theo danh mục: {}", e.getMessage());
+            throw new RuntimeException("Lỗi khi lấy danh sách sách theo danh mục: " + e.getMessage());
+        }
     }
 } 

@@ -5,7 +5,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
-import java.util.Date;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -15,6 +15,7 @@ import java.util.List;
 public class Book {
     @Id
     private String id;
+    private String name;
     private Image image;
     private List<String> slider;
     private String mainText;
@@ -22,9 +23,9 @@ public class Book {
     private long price;
     private int sold;
     private int quantity;
-    private String category;
-    private Date createdAt;
-    private Date updatedAt;
+    private String categoryId;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
     @Data
     @AllArgsConstructor

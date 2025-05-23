@@ -1,6 +1,6 @@
 package com.project2.BookStore.dto;
 
-import com.project2.BookStore.model.Book;
+import com.project2.BookStore.model.Book.Image;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,11 +10,11 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class BookSimpleDTO {
     private String id;
-    private Book.Image image;
+    private Image image;
     private String mainText;
     private String author;
     private long price;
     private int sold;
     private int quantity;
-    private String category;
+    private String categoryId;
 } 
