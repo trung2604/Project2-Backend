@@ -1,26 +1,46 @@
 package com.project2.BookStore.model;
 
+import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.AllArgsConstructor;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.core.mapping.DBRef;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
 
 @Data
-@Document(collection = "order_items")
+@Entity
+@Table(name = "order_items")
 @NoArgsConstructor
 @AllArgsConstructor
 public class OrderItem {
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
 
-    @DBRef
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id", nullable = false)
+    private Order order;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "book_id", nullable = false)
     private Book book;
 
-    private int quantity;
+    @Column(nullable = false)
+    private Integer quantity;
 
-    private double price;
+    @Column(nullable = false)
+    private Double price;
 
-    private double subtotal;
+    @Column(nullable = false)
+    private Double subtotal;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
 } 

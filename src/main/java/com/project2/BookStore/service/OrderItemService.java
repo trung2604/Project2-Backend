@@ -9,9 +9,13 @@ public interface OrderItemService {
 
     Page<OrderItem> getAllOrderItems(Pageable pageable);
 
+    Page<OrderItem> getOrderItemsByOrderId(String orderId, Pageable pageable);
+
     OrderItem createOrderItem(OrderItem orderItem);
 
     OrderItem updateOrderItem(String orderItemId, OrderItem orderItem);
 
     void deleteOrderItem(String orderItemId);
+
+    void deleteOrderItemsByOrderId(String orderId);
 } 

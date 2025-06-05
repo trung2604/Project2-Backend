@@ -12,6 +12,7 @@ import com.project2.BookStore.exception.BadRequestException;
 import com.project2.BookStore.model.User;
 import com.project2.BookStore.service.UserService;
 import com.project2.BookStore.service.ImageProcessingService;
+import com.project2.BookStore.service.OrderService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +29,9 @@ import java.util.Map;
 import java.util.List;
 
 import com.project2.BookStore.util.JwtUtil;
+import lombok.extern.slf4j.Slf4j;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/bookStore/user")
 public class UserController {
@@ -41,188 +44,197 @@ public class UserController {
     @Autowired
     private JwtUtil jwtUtil;
 
+    @Autowired
+    private OrderService orderService;
+
     @PostMapping("/register")
-    public ResponseEntity<UserResponseDTO> register(@Valid @RequestBody RegisterRequest req) {
-        UserResponseDTO user = userService.register(req);
-        return ResponseEntity.status(HttpStatus.CREATED).body(user);
+    public ResponseEntity<ApiResponseDTO> register(@Valid @RequestBody RegisterRequest registerRequest) {
+        log.info("Received register request for email: {}", registerRequest.getEmail());
+        try {
+            UserResponseDTO result = userService.register(registerRequest);
+            log.info("Register successful for email: {}", registerRequest.getEmail());
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Đăng ký thành công", result));
+        } catch (BadRequestException e) {
+            log.warn("Register failed for email {}: {}", registerRequest.getEmail(), e.getMessage());
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
+        }
     }
 
     @PostMapping("/login")
-    public ResponseEntity<ApiResponseDTO<LoginResultDTO>> login(@Valid @RequestBody LoginRequest req) {
-        LoginResponseDTO loginResponse = userService.login(req);
-        LoginResultDTO result = new LoginResultDTO(
-            "Đăng nhập thành công!",
-            loginResponse.getToken(),
-            loginResponse.getUser()
-        );
-        ApiResponseDTO<LoginResultDTO> response = new ApiResponseDTO<>(200, "", result);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ApiResponseDTO> login(@Valid @RequestBody LoginRequest loginRequest) {
+        log.info("Received login request for email: {}", loginRequest.getEmail());
+        try {
+            LoginResponseDTO result = userService.login(loginRequest);
+            log.info("Login successful for email: {}", loginRequest.getEmail());
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Đăng nhập thành công", result));
+        } catch (BadRequestException e) {
+            log.warn("Login failed for email {}: {}", loginRequest.getEmail(), e.getMessage());
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
+        } catch (Exception e) {
+            log.error("Unexpected error during login for email {}: {}", loginRequest.getEmail(), e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponseDTO(false, "Lỗi server: " + e.getMessage(), null));
+        }
     }
 
     @GetMapping()
-    public List<UserResponseDTO> getAllUsers() {
-        return userService.getAllUsers();
+    public ResponseEntity<ApiResponseDTO> getAllUsers() {
+        try {
+            List<UserResponseDTO> users = userService.getAllUsers();
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Lấy danh sách người dùng thành công", users));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
+        }
     }
 
     @PutMapping("/update")
-    public ResponseEntity<UserResponseDTO> updateUser(@Valid @RequestBody UpdateUserRequest req) {
-        UserResponseDTO updatedUser = userService.updateUser(req);
-        return ResponseEntity.ok(updatedUser);
+    public ResponseEntity<ApiResponseDTO> updateUser(@Valid @RequestBody UpdateUserRequest req) {
+        try {
+            UserResponseDTO updatedUser = userService.updateUser(req);
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Cập nhật thông tin người dùng thành công", updatedUser));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
+        }
     }
 
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<ApiResponseDTO<Void>> deleteUser(@PathVariable String id) {
-        userService.deleteUser(id);
-        ApiResponseDTO<Void> response = new ApiResponseDTO<>(200, "Xóa user thành công!", null);
-        return ResponseEntity.ok(response);
+    public ResponseEntity<ApiResponseDTO> deleteUser(@PathVariable String id) {
+        log.info("Bắt đầu xóa người dùng. UserId: {}", id);
+        try {
+            if (orderService.hasActiveOrders(id)) {
+                throw new BadRequestException("Không thể xóa người dùng có đơn hàng đang xử lý");
+            }
+            
+            User user = userService.getUserById(id, false);
+            
+            if (user.getAvatar() != null) {
+                imageProcessingService.deleteOldAvatar(user.getAvatar());
+            }
+            
+            userService.deleteUser(id);
+            
+            log.info("Xóa người dùng thành công. UserId: {}", id);
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Xóa người dùng thành công", null));
+        } catch (BadRequestException e) {
+            log.warn("Lỗi khi xóa người dùng: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
+        } catch (Exception e) {
+            log.error("Lỗi không mong muốn khi xóa người dùng: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponseDTO(false, "Lỗi server: " + e.getMessage(), null));
+        }
     }
 
     @PostMapping("/avatar/upload")
-    public ResponseEntity<ApiResponseDTO<AvatarDTO>> uploadAvatar(
+    public ResponseEntity<ApiResponseDTO> uploadAvatar(
             @RequestParam("file") MultipartFile file,
             @RequestParam("userId") String userId) {
         try {
-            // Get user to access old avatar
             User user = userService.getUserById(userId);
             AvatarDTO avatarDTO = imageProcessingService.processAndUploadAvatar(file, user);
             userService.updateUserAvatar(userId, avatarDTO);
-            
-            ApiResponseDTO<AvatarDTO> response = new ApiResponseDTO<>(
-                200,
-                "Upload avatar thành công!",
-                avatarDTO
-            );
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Tải lên ảnh đại diện thành công", avatarDTO));
         } catch (BadRequestException e) {
-            ApiResponseDTO<AvatarDTO> response = new ApiResponseDTO<>(
-                400,
-                e.getMessage(),
-                null
-            );
-            return ResponseEntity.badRequest().body(response);
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
         } catch (IOException e) {
-            ApiResponseDTO<AvatarDTO> response = new ApiResponseDTO<>(
-                500,
-                "Lỗi server khi xử lý ảnh: " + e.getMessage(),
-                null
-            );
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponseDTO(false, "Lỗi server khi xử lý ảnh: " + e.getMessage(), null));
         }
     }
 
     @GetMapping("/paged")
-    public ResponseEntity<ApiResponseDTO<Map<String, Object>>> getUsersPaged(
+    public ResponseEntity<ApiResponseDTO> getUsersPaged(
             @RequestParam(defaultValue = "1") int current,
             @RequestParam(defaultValue = "10") int pageSize) {
-        PageRequest pageRequest = PageRequest.of(Math.max(0, current - 1), pageSize);
-        Page<UserResponseDTO> page = userService.getUsersPaged(pageRequest);
+        try {
+            PageRequest pageRequest = PageRequest.of(Math.max(0, current - 1), pageSize);
+            Page<UserResponseDTO> page = userService.getUsersPaged(pageRequest);
 
-        Map<String, Object> meta = new HashMap<>();
-        meta.put("current", current);
-        meta.put("pageSize", pageSize);
-        meta.put("pages", page.getTotalPages());
-        meta.put("total", page.getTotalElements());
+            Map<String, Object> meta = new HashMap<>();
+            meta.put("current", current);
+            meta.put("pageSize", pageSize);
+            meta.put("pages", page.getTotalPages());
+            meta.put("total", page.getTotalElements());
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("meta", meta);
-        data.put("result", page.getContent());
+            Map<String, Object> data = new HashMap<>();
+            data.put("meta", meta);
+            data.put("result", page.getContent());
 
-        ApiResponseDTO<Map<String, Object>> response = new ApiResponseDTO<>(200, "", data);
-        return ResponseEntity.ok(response);
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Lấy danh sách người dùng thành công", data));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
+        }
     }
 
     @GetMapping("/account")
-    public ResponseEntity<ApiResponseDTO<UserResponseDTO>> getCurrentUser(HttpServletRequest request) {
+    public ResponseEntity<ApiResponseDTO> getCurrentUser(HttpServletRequest request) {
         try {
-            String authHeader = request.getHeader("Authorization");
-            System.out.println("Auth header: " + authHeader); // Debug log
-
-            if (authHeader == null || authHeader.isEmpty()) {
-                ApiResponseDTO<UserResponseDTO> response = new ApiResponseDTO<>(401, "Không tìm thấy token xác thực", null);
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            }
-
-            if (!authHeader.startsWith("Bearer ")) {
-                ApiResponseDTO<UserResponseDTO> response = new ApiResponseDTO<>(401, "Token không đúng định dạng", null);
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            }
-
-            String token = authHeader.substring(7).trim();
-            if (token.isEmpty()) {
-                ApiResponseDTO<UserResponseDTO> response = new ApiResponseDTO<>(401, "Token không được để trống", null);
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            }
-
-            System.out.println("Token: " + token); // Debug log
+            String token = request.getHeader("Authorization").replace("Bearer ", "");
             String email = jwtUtil.getEmailFromToken(token);
-            System.out.println("Email from token: " + email); // Debug log
-
             UserResponseDTO user = userService.getUserByEmail(email);
-            ApiResponseDTO<UserResponseDTO> response = new ApiResponseDTO<>(200, "Lấy thông tin user thành công!", user);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Lấy thông tin người dùng thành công", user));
         } catch (BadRequestException e) {
-            System.out.println("BadRequestException: " + e.getMessage()); // Debug log
-            ApiResponseDTO<UserResponseDTO> response = new ApiResponseDTO<>(400, e.getMessage(), null);
-            return ResponseEntity.badRequest().body(response);
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
         } catch (Exception e) {
-            System.out.println("Exception: " + e.getMessage()); // Debug log
-            ApiResponseDTO<UserResponseDTO> response = new ApiResponseDTO<>(401, "Token không hợp lệ hoặc đã hết hạn", null);
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponseDTO(false, "Token không hợp lệ hoặc đã hết hạn", null));
         }
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponseDTO<Void>> logout(HttpServletRequest request) {
+    public ResponseEntity<ApiResponseDTO> logout(HttpServletRequest request) {
         try {
-            String authHeader = request.getHeader("Authorization");
-            System.out.println("Logout - Auth header: " + authHeader); // Debug log
-
-            if (authHeader == null || authHeader.isEmpty()) {
-                ApiResponseDTO<Void> response = new ApiResponseDTO<>(401, "Không tìm thấy token xác thực", null);
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+            String token = request.getHeader("Authorization").replace("Bearer ", "");
+            if (!jwtUtil.validateToken(token)) {
+                throw new BadRequestException("Token không hợp lệ");
             }
-
-            if (!authHeader.startsWith("Bearer ")) {
-                ApiResponseDTO<Void> response = new ApiResponseDTO<>(401, "Token không đúng định dạng", null);
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            }
-
-            String token = authHeader.substring(7).trim();
-            if (token.isEmpty()) {
-                ApiResponseDTO<Void> response = new ApiResponseDTO<>(401, "Token không được để trống", null);
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            }
-
-            // Kiểm tra token có hợp lệ không
-            try {
-                String email = jwtUtil.getEmailFromToken(token);
-                System.out.println("Logout - Email from token: " + email); // Debug log
-                
-                // Token hợp lệ, trả về thành công
-                ApiResponseDTO<Void> response = new ApiResponseDTO<>(200, "Đăng xuất thành công!", null);
-                return ResponseEntity.ok(response);
-            } catch (Exception e) {
-                // Token không hợp lệ hoặc đã hết hạn
-                ApiResponseDTO<Void> response = new ApiResponseDTO<>(401, "Token không hợp lệ hoặc đã hết hạn", null);
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
-            }
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Đăng xuất thành công", null));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
         } catch (Exception e) {
-            System.out.println("Logout - Exception: " + e.getMessage()); // Debug log
-            ApiResponseDTO<Void> response = new ApiResponseDTO<>(500, "Đã xảy ra lỗi khi đăng xuất", null);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(new ApiResponseDTO(false, "Token không hợp lệ hoặc đã hết hạn", null));
         }
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponseDTO<UserResponseDTO>> getUserById(@PathVariable String id) {
+    public ResponseEntity<ApiResponseDTO> getUserById(@PathVariable String id) {
         try {
             User user = userService.getUserById(id);
             UserResponseDTO userResponseDTO = new UserResponseDTO(user);
-            ApiResponseDTO<UserResponseDTO> response = new ApiResponseDTO<>(200, "", userResponseDTO);
-            return ResponseEntity.ok(response);
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Lấy thông tin người dùng thành công", userResponseDTO));
         } catch (BadRequestException e) {
-            ApiResponseDTO<UserResponseDTO> response = new ApiResponseDTO<>(404, e.getMessage(), null);
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
+        }
+    }
+
+    @PostMapping("/upload-avatar")
+    public ResponseEntity<ApiResponseDTO> uploadAvatar(
+            @RequestParam("file") MultipartFile file,
+            HttpServletRequest request) {
+        try {
+            String token = request.getHeader("Authorization").replace("Bearer ", "");
+            String userId = jwtUtil.getUserIdFromToken(token);
+            User user = userService.getUserById(userId);
+            AvatarDTO avatarDTO = imageProcessingService.processAndUploadAvatar(file, user);
+            userService.updateUserAvatar(userId, avatarDTO);
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Tải lên ảnh đại diện thành công", avatarDTO));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponseDTO(false, "Lỗi khi tải lên ảnh đại diện: " + e.getMessage(), null));
         }
     }
 }

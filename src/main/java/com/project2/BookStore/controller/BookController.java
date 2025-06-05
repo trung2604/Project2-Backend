@@ -1,163 +1,210 @@
 package com.project2.BookStore.controller;
 
-import com.project2.BookStore.dto.BookSimpleDTO;
-import com.project2.BookStore.dto.ApiResponseDTO;
-import com.project2.BookStore.model.Book;
+import com.project2.BookStore.dto.*;
+import com.project2.BookStore.exception.BadRequestException;
 import com.project2.BookStore.service.BookService;
-import com.project2.BookStore.exception.BookException;
+import com.project2.BookStore.service.ImageProcessingService;
+import com.project2.BookStore.util.JwtUtil;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.http.HttpStatus;
+import java.io.IOException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
-import jakarta.validation.Valid;
-import java.util.HashMap;
-import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 import java.util.List;
-import java.io.IOException;
-import java.util.stream.Collectors;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import org.springframework.security.access.prepost.PreAuthorize;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/bookStore/book")
 public class BookController {
     @Autowired
     private BookService bookService;
 
-    @GetMapping("/simple")
-    public ResponseEntity<ApiResponseDTO<List<BookSimpleDTO>>> getSimpleBooks() {
-        List<Book> books = bookService.getAllBooks();
-        List<BookSimpleDTO> result = books.stream()
-            .map(book -> new BookSimpleDTO(
-                book.getId(),
-                book.getImage(),
-                book.getMainText(),
-                book.getAuthor(),
-                book.getPrice(),
-                book.getSold(),
-                book.getQuantity(),
-                book.getCategoryId()
-            ))
-            .collect(Collectors.toList());
+    @Autowired
+    private ImageProcessingService imageProcessingService;
 
-        return ResponseEntity.ok(new ApiResponseDTO<>(200, "Lấy danh sách sách thành công", result));
+    @Autowired
+    private JwtUtil jwtUtil;
+
+    private void validateAdminToken(HttpServletRequest request) {
+        log.info("Validating admin token");
+        String authHeader = request.getHeader("Authorization");
+        log.debug("Authorization header: {}", authHeader);
+        
+        if (authHeader == null) {
+            log.warn("Authorization header is null");
+            throw new BadRequestException("Không tìm thấy token xác thực");
+        }
+        
+        if (!authHeader.startsWith("Bearer ")) {
+            log.warn("Authorization header does not start with 'Bearer '");
+            throw new BadRequestException("Token không đúng định dạng");
+        }
+        
+        String token = authHeader.substring(7);
+        log.debug("Extracted token: {}", token);
+        
+        try {
+            String role = jwtUtil.getRoleFromToken(token);
+            log.info("User role: {}", role);
+            if (!"ROLE_ADMIN".equals(role)) {
+                log.warn("User does not have ADMIN role");
+                throw new BadRequestException("Không có quyền thực hiện thao tác này");
+            }
+        } catch (Exception e) {
+            log.error("Error validating token: {}", e.getMessage());
+            throw new BadRequestException("Token không hợp lệ: " + e.getMessage());
+        }
     }
 
-    @PostMapping("/add")
-    public ResponseEntity<ApiResponseDTO<BookSimpleDTO>> addBook(
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("mainText") String mainText,
-            @RequestParam("author") String author,
-            @RequestParam("price") long price,
-            @RequestParam("sold") int sold,
-            @RequestParam("quantity") int quantity,
-            @RequestParam("categoryId") String categoryId
-    ) {
+    @GetMapping("/simple")
+    public ResponseEntity<ApiResponse<List<BookResponseDTO>>> getAllBooks() {
         try {
-            BookSimpleDTO dto = bookService.addBookWithImage(file, mainText, author, price, sold, quantity, categoryId);
-            return ResponseEntity.status(HttpStatus.CREATED)
-                .body(new ApiResponseDTO<>(201, "Thêm sách thành công!", dto));
+            List<BookResponseDTO> books = bookService.getAllBooks();
+            return ResponseEntity.ok(ApiResponse.success(books, "Lấy danh sách sách thành công"));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                .body(new ApiResponseDTO<>(400, e.getMessage(), null));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.serverError("Lỗi server: " + e.getMessage()));
         }
     }
 
     @GetMapping("/paged")
-    public ResponseEntity<ApiResponseDTO<Map<String, Object>>> getBooksPaged(
-            @RequestParam(defaultValue = "1") int current,
-            @RequestParam(defaultValue = "10") int pageSize) {
+    public ResponseEntity<ApiResponse<Page<BookResponseDTO>>> getBooksPaged(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
         try {
-            PageRequest pageRequest = PageRequest.of(Math.max(0, current - 1), pageSize);
-            Page<BookSimpleDTO> page = bookService.getBooksPaged(pageRequest);
-
-            Map<String, Object> meta = new HashMap<>();
-            meta.put("current", current);
-            meta.put("pageSize", pageSize);
-            meta.put("pages", page.getTotalPages());
-            meta.put("total", page.getTotalElements());
-
-            Map<String, Object> data = new HashMap<>();
-            data.put("meta", meta);
-            data.put("result", page.getContent());
-
-            return ResponseEntity.ok(new ApiResponseDTO<>(200, "Lấy danh sách sách thành công", data));
+            Page<BookResponseDTO> books = bookService.getBooksPaged(PageRequest.of(page, size));
+            return ResponseEntity.ok(ApiResponse.success(books, "Lấy danh sách sách phân trang thành công"));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiResponseDTO<>(500, "Lỗi khi lấy danh sách sách: " + e.getMessage(), null));
+                .body(ApiResponse.serverError("Lỗi server: " + e.getMessage()));
         }
     }
 
-    @PutMapping("/update")
-    public ResponseEntity<ApiResponseDTO<Book>> updateBook(@Valid @RequestBody Book book) {
+    @GetMapping("/{id}")
+    public ResponseEntity<ApiResponse<BookResponseDTO>> getBookById(@PathVariable String id) {
         try {
-            Book updatedBook = bookService.updateBook(book);
-            return ResponseEntity.ok(new ApiResponseDTO<>(200, "Cập nhật sách thành công", updatedBook));
-        } catch (BookException e) {
-            if (e.getMessage().contains("Không tìm thấy sách")) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(new ApiResponseDTO<>(404, e.getMessage(), null));
-            }
-            return ResponseEntity.badRequest()
-                .body(new ApiResponseDTO<>(400, e.getMessage(), null));
+            BookResponseDTO book = bookService.getBookById(id);
+            return ResponseEntity.ok(ApiResponse.success(book, "Lấy thông tin sách thành công"));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiResponseDTO<>(500, "Lỗi khi cập nhật sách: " + e.getMessage(), null));
+                .body(ApiResponse.serverError("Lỗi server: " + e.getMessage()));
+        }
+    }
+
+    @PostMapping("/add")
+    public ResponseEntity<ApiResponse<BookResponseDTO>> addBook(
+            @RequestPart("book") String bookJson,
+            @RequestPart(value = "imageFile", required = false) MultipartFile imageFile) {
+        try {
+            log.info("Received request to add book with JSON: {}", bookJson);
+            
+            // Parse JSON string to AddBookRequest
+            ObjectMapper mapper = new ObjectMapper();
+            AddBookRequest request = mapper.readValue(bookJson, AddBookRequest.class);
+            log.info("Parsed book request: {}", request);
+            
+            // Set image file if provided
+            if (imageFile != null && !imageFile.isEmpty()) {
+                log.info("Image file provided: {} ({} bytes)", imageFile.getOriginalFilename(), imageFile.getSize());
+                request.setImageFile(imageFile);
+            } else {
+                log.info("No image file provided");
+            }
+            
+            BookResponseDTO response = bookService.addBook(request);
+            log.info("Book added successfully with ID: {}", response.getId());
+            return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(response, "Thêm sách thành công"));
+        } catch (JsonProcessingException e) {
+            log.error("Invalid book data format: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.error("Định dạng dữ liệu sách không hợp lệ: " + e.getMessage()));
+        } catch (BadRequestException e) {
+            log.error("Bad request: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                .body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            log.error("Error adding book: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Lỗi khi thêm sách: " + e.getMessage()));
+        }
+    }
+
+    @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<BookResponseDTO>> updateBook(
+            @PathVariable String id,
+            @RequestPart(value = "bookData", required = true) UpdateBookRequest request,
+            @RequestPart(value = "imageFile", required = false) MultipartFile imageFile) {
+        try {
+            request.setId(id);
+            request.setImageFile(imageFile);
+            BookResponseDTO updatedBook = bookService.updateBook(request);
+            return ResponseEntity.ok(ApiResponse.success(updatedBook, "Cập nhật sách thành công"));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest()
+                    .body(ApiResponse.error(e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(ApiResponse.serverError("Lỗi server: " + e.getMessage()));
         }
     }
 
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<ApiResponseDTO<Void>> deleteBook(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<Void>> deleteBook(@PathVariable String id) {
         try {
             bookService.deleteBook(id);
-            return ResponseEntity.ok(new ApiResponseDTO<>(200, "Xóa sách thành công", null));
+            return ResponseEntity.ok(ApiResponse.success(null, "Xóa sách thành công"));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiResponseDTO<>(500, "Lỗi khi xóa sách: " + e.getMessage(), null));
+                .body(ApiResponse.serverError("Lỗi server: " + e.getMessage()));
         }
     }
 
-    @PutMapping("/image")
-    public ResponseEntity<ApiResponseDTO<Book>> updateBookImage(
-            @RequestParam("id") String id,
-            @RequestParam("image") MultipartFile image) {
+    @PostMapping("/image")
+    public ResponseEntity<ApiResponse<String>> uploadBookImage(
+            @RequestParam("file") MultipartFile file) {
         try {
-            Book updatedBook = bookService.updateBookImage(id, image);
-            return ResponseEntity.ok(new ApiResponseDTO<>(200, "Cập nhật ảnh sách thành công", updatedBook));
-        } catch (IOException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiResponseDTO<>(500, "Lỗi khi xử lý ảnh: " + e.getMessage(), null));
+            String imageUrl = imageProcessingService.uploadImageToCloudinary(file);
+            return ResponseEntity.ok(ApiResponse.success(imageUrl, "Tải lên ảnh sách thành công"));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
-            return ResponseEntity.badRequest()
-                .body(new ApiResponseDTO<>(400, e.getMessage(), null));
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.serverError("Lỗi khi tải lên ảnh sách: " + e.getMessage()));
         }
     }
 
     @GetMapping("/category/{categoryId}")
-    public ResponseEntity<ApiResponseDTO<Map<String, Object>>> getBooksByCategory(
+    public ResponseEntity<ApiResponse<Page<BookResponseDTO>>> getBooksByCategory(
             @PathVariable String categoryId,
-            @RequestParam(defaultValue = "1") int current,
-            @RequestParam(defaultValue = "10") int pageSize) {
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
         try {
-            PageRequest pageRequest = PageRequest.of(Math.max(0, current - 1), pageSize);
-            Page<BookSimpleDTO> page = bookService.getBooksByCategoryPaged(categoryId, pageRequest);
-
-            Map<String, Object> meta = new HashMap<>();
-            meta.put("current", current);
-            meta.put("pageSize", pageSize);
-            meta.put("pages", page.getTotalPages());
-            meta.put("total", page.getTotalElements());
-
-            Map<String, Object> data = new HashMap<>();
-            data.put("meta", meta);
-            data.put("result", page.getContent());
-
-            return ResponseEntity.ok(new ApiResponseDTO<>(200, "Lấy danh sách sách theo danh mục thành công", data));
+            Page<BookResponseDTO> books = bookService.getBooksByCategoryPaged(categoryId, PageRequest.of(page, size));
+            return ResponseEntity.ok(ApiResponse.success(books, "Lấy danh sách sách theo danh mục thành công"));
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(new ApiResponseDTO<>(500, "Lỗi khi lấy danh sách sách: " + e.getMessage(), null));
+                .body(ApiResponse.serverError("Lỗi server: " + e.getMessage()));
         }
     }
 } 

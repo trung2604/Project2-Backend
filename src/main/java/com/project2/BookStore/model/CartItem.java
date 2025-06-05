@@ -1,23 +1,63 @@
 package com.project2.BookStore.model;
 
-import lombok.AllArgsConstructor;
+import jakarta.persistence.*;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
+import lombok.AllArgsConstructor;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDateTime;
 
 @Data
-@AllArgsConstructor
+@Entity
+@Table(name = "cart_items")
 @NoArgsConstructor
-@Document(collection = "cart_items")
+@AllArgsConstructor
 public class CartItem {
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
-    private String bookId;
-    private String bookTitle;
-    private String bookImage;
-    private long price;
-    private int quantity;
-    private String userId;
-    private long totalPrice; // price * quantity
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "book_id", nullable = false)
+    private Book book;
+
+    @Column(nullable = false)
+    private Integer quantity;
+
+    @Column(name = "total_price", nullable = false)
+    private Long totalPrice;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
+    public String getBookId() {
+        return book != null ? book.getId() : null;
+    }
+
+    public String getBookTitle() {
+        return book != null ? book.getMainText() : null;
+    }
+
+    public Book.Image getBookImage() {
+        return book != null ? book.getImage() : null;
+    }
+
+    public long getPrice() {
+        return book != null ? book.getPrice() : 0;
+    }
+
+    public String getUserId() {
+        return user != null ? user.getId() : null;
+    }
 } 

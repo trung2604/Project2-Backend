@@ -15,7 +15,7 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ApiResponseDTO<Map<String, String>>> handleValidationExceptions(
+    public ResponseEntity<ApiResponseDTO> handleValidationExceptions(
             MethodArgumentNotValidException ex) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach((error) -> {
@@ -24,22 +24,25 @@ public class GlobalExceptionHandler {
             errors.put(fieldName, errorMessage);
         });
 
-        ApiResponseDTO<Map<String, String>> response = new ApiResponseDTO<>(
-            HttpStatus.BAD_REQUEST.value(),
-            "Dữ liệu không hợp lệ",
-            errors
-        );
+        ApiResponseDTO response = new ApiResponseDTO(false, "Dữ liệu không hợp lệ", errors);
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
 
-        return ResponseEntity.badRequest().body(response);
+    @ExceptionHandler(BadRequestException.class)
+    public ResponseEntity<ApiResponseDTO> handleBadRequestException(BadRequestException ex) {
+        ApiResponseDTO response = new ApiResponseDTO(false, ex.getMessage(), null);
+        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<ApiResponseDTO> handleResourceNotFoundException(ResourceNotFoundException ex) {
+        ApiResponseDTO response = new ApiResponseDTO(false, ex.getMessage(), null);
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiResponseDTO<String>> handleGlobalException(Exception ex) {
-        ApiResponseDTO<String> response = new ApiResponseDTO<>(
-            HttpStatus.INTERNAL_SERVER_ERROR.value(),
-            "Đã xảy ra lỗi: " + ex.getMessage(),
-            null
-        );
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+    public ResponseEntity<ApiResponseDTO> handleGlobalException(Exception ex) {
+        ApiResponseDTO response = new ApiResponseDTO(false, "Đã xảy ra lỗi: " + ex.getMessage(), null);
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 } 

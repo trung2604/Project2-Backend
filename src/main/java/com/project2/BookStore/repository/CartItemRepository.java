@@ -1,15 +1,14 @@
 package com.project2.BookStore.repository;
 
 import com.project2.BookStore.model.CartItem;
-import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface CartItemRepository extends MongoRepository<CartItem, String> {
-    List<CartItem> findByUserId(String userId);
-    Optional<CartItem> findByUserIdAndBookId(String userId, String bookId);
-    void deleteByUserIdAndBookId(String userId, String bookId);
-    void deleteByUserId(String userId);
+public interface CartItemRepository extends JpaRepository<CartItem, String> {
+    List<CartItem> findByUser_Id(String userId);
+    Optional<CartItem> findByUser_IdAndBook_Id(String userId, String bookId);
+    void deleteByUser_IdAndBook_Id(String userId, String bookId);
 } 

@@ -5,10 +5,15 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
-public class ApiResponseDTO<T> {
-    private int statusCode;
+@AllArgsConstructor
+public class ApiResponseDTO {
+    private boolean success;
     private String message;
-    private T data;
+    private Object data;
+
+    public ApiResponseDTO(boolean success, String message) {
+        this.success = success;
+        this.message = message;
+    }
 }

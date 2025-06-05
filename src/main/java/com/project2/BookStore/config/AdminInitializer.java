@@ -2,34 +2,44 @@ package com.project2.BookStore.config;
 
 import com.project2.BookStore.model.User;
 import com.project2.BookStore.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.project2.BookStore.exception.BadRequestException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-import java.util.Date;
 
+import java.time.LocalDateTime;
+
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class AdminInitializer implements CommandLineRunner {
-    @Autowired
-    private UserRepository userRepository;
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
     @Override
     public void run(String... args) {
-        boolean hasAdmin = userRepository.findByEmail("admin@bookstore.com") != null;
-        if (!hasAdmin) {
-            User admin = new User();
-            admin.setFullName("Admin");
-            admin.setEmail("admin@bookstore.com");
-            admin.setPassword(passwordEncoder.encode("admin123"));
-            admin.setPhone("0123456789");
-            admin.setRole("ROLE_ADMIN");
-            admin.setActive(true);
-            admin.setCreatedAt(new Date());
-            admin.setUpdatedAt(new Date());
-            userRepository.save(admin);
-            System.out.println("Đã tạo tài khoản admin mặc định: admin@bookstore.com / admin123");
+        try {
+            User existingAdmin = userRepository.findByEmail("admin@bookstore.com");
+            if (existingAdmin == null) {
+                User admin = new User();
+                admin.setFullName("Admin");
+                admin.setEmail("admin@bookstore.com");
+                admin.setPassword(passwordEncoder.encode("admin123"));
+                admin.setPhone("0123456789");
+                admin.setRole(User.UserRole.ROLE_ADMIN);
+                admin.setActive(true);
+                admin.setCreatedAt(LocalDateTime.now());
+                admin.setUpdatedAt(LocalDateTime.now());
+                userRepository.save(admin);
+                log.info("Đã tạo tài khoản admin mặc định: admin@bookstore.com / admin123");
+            } else {
+                log.info("Tài khoản admin đã tồn tại");
+            }
+        } catch (Exception e) {
+            log.error("Lỗi khi khởi tạo tài khoản admin: {}", e.getMessage());
+            throw new BadRequestException("Không thể khởi tạo tài khoản admin: " + e.getMessage());
         }
     }
 } 

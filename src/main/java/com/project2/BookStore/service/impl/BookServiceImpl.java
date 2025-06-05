@@ -1,262 +1,318 @@
 package com.project2.BookStore.service.impl;
 
 import com.project2.BookStore.model.Book;
+import com.project2.BookStore.model.Category;
 import com.project2.BookStore.repository.BookRepository;
+import com.project2.BookStore.repository.CategoryRepository;
 import com.project2.BookStore.service.BookService;
-import com.project2.BookStore.exception.BookException;
+import com.project2.BookStore.service.ImageProcessingService;
+import com.project2.BookStore.exception.BadRequestException;
+import com.project2.BookStore.dto.BookResponseDTO;
+import com.project2.BookStore.dto.AddBookRequest;
+import com.project2.BookStore.dto.UpdateBookRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import java.util.List;
-import com.project2.BookStore.dto.BookSimpleDTO;
-import org.springframework.web.multipart.MultipartFile;
-import com.project2.BookStore.service.ImageProcessingService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.PageImpl;
-import java.io.IOException;
-import org.springframework.data.mongodb.core.MongoTemplate;
-import org.springframework.data.mongodb.core.query.Criteria;
-import org.springframework.data.mongodb.core.query.Query;
-import java.time.LocalDateTime;
+import org.springframework.web.multipart.MultipartFile;
+import java.util.List;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import com.cloudinary.utils.ObjectUtils;
+import com.cloudinary.Cloudinary;
+import org.hibernate.Hibernate;
 
+@Slf4j
 @Service
 public class BookServiceImpl implements BookService {
-    private static final Logger logger = LoggerFactory.getLogger(BookServiceImpl.class);
-
     @Autowired
     private BookRepository bookRepository;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
 
     @Autowired
     private ImageProcessingService imageProcessingService;
 
     @Autowired
-    private MongoTemplate mongoTemplate;
+    private Cloudinary cloudinary;
 
     @Override
-    public List<Book> getAllBooks() {
-        return bookRepository.findAll();
+    public List<BookResponseDTO> getAllBooks() throws BadRequestException {
+        try {
+            List<Book> books = bookRepository.findAll();
+            return books.stream()
+                .map(BookResponseDTO::new)
+                .collect(Collectors.toList());
+        } catch (Exception e) {
+            throw new BadRequestException("Lỗi khi lấy danh sách sách: " + e.getMessage());
+        }
     }
 
     @Override
-    public Book addBook(Book book) {
-        // Kiểm tra trùng tên sách
-        if (bookRepository.existsByMainText(book.getMainText())) {
-            throw new RuntimeException("Sách với tên '" + book.getMainText() + "' đã tồn tại trong hệ thống.");
+    public Page<BookResponseDTO> getBooksPaged(Pageable pageable) throws BadRequestException {
+        try {
+            log.info("Bắt đầu lấy danh sách sách phân trang");
+            Page<Book> bookPage = bookRepository.findAll(pageable);
+            
+            // Log thông tin về số lượng sách và trạng thái ảnh
+            log.info("Tìm thấy {} sách", bookPage.getTotalElements());
+            bookPage.getContent().forEach(book -> {
+                if (book.getImage() != null) {
+                    log.info("Sách ID: {} có ảnh - Thumbnail: {}, Medium: {}, Original: {}", 
+                        book.getId(), 
+                        book.getImage().getThumbnail(),
+                        book.getImage().getMedium(),
+                        book.getImage().getOriginal());
+                } else {
+                    log.info("Sách ID: {} không có ảnh", book.getId());
+                }
+            });
+            
+            // Chuyển đổi sang DTO
+            List<BookResponseDTO> bookDTOs = bookPage.getContent().stream()
+                .map(book -> {
+                    BookResponseDTO dto = new BookResponseDTO(book);
+                    if (dto.getImage() != null) {
+                        log.info("Đã chuyển đổi ảnh cho sách ID: {} - Thumbnail: {}", 
+                            dto.getId(), dto.getImage().getThumbnail());
+                    }
+                    return dto;
+                })
+                .collect(Collectors.toList());
+            
+            log.info("Đã chuyển đổi {} sách sang DTO", bookDTOs.size());
+            return new PageImpl<>(bookDTOs, pageable, bookPage.getTotalElements());
+        } catch (Exception e) {
+            log.error("Lỗi khi lấy danh sách sách phân trang: {}", e.getMessage(), e);
+            throw new BadRequestException("Lỗi khi lấy danh sách sách: " + e.getMessage());
         }
-        return bookRepository.save(book);
     }
 
     @Override
-    public BookSimpleDTO addBookWithImage(MultipartFile file, String mainText, String author, long price, int sold, int quantity, String categoryId) {
-        // Validate các trường không được null hoặc rỗng
-        if (mainText == null || mainText.trim().isEmpty()) {
-            throw new RuntimeException("Trường mainText không được để trống.");
+    public BookResponseDTO getBookById(String id) throws BadRequestException {
+        try {
+            Book book = bookRepository.findById(id)
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy sách với ID: " + id));
+            return new BookResponseDTO(book);
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BadRequestException("Lỗi khi lấy thông tin sách: " + e.getMessage());
         }
-        if (author == null || author.trim().isEmpty()) {
-            throw new RuntimeException("Trường author không được để trống.");
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public BookResponseDTO addBook(AddBookRequest request) {
+        log.info("Bắt đầu thêm sách mới: {}", request.getMainText());
+        
+        // Validate request data
+        if (request.getMainText() == null || request.getMainText().trim().isEmpty()) {
+            throw new BadRequestException("Tên sách không được để trống");
         }
-        if (categoryId == null || categoryId.trim().isEmpty()) {
-            throw new RuntimeException("Trường categoryId không được để trống.");
+        if (request.getAuthor() == null || request.getAuthor().trim().isEmpty()) {
+            throw new BadRequestException("Tên tác giả không được để trống");
         }
-        // Kiểm tra trùng tên sách
-        if (bookRepository.existsByMainText(mainText)) {
-            throw new RuntimeException("Sách với tên '" + mainText + "' đã tồn tại trong hệ thống.");
+        if (request.getPrice() == null || request.getPrice() < 0) {
+            throw new BadRequestException("Giá sách không hợp lệ");
         }
-        // Validate giá (price) phải > 0, sold và quantity phải >= 0
-        if (price <= 0) {
-            throw new RuntimeException("Giá (price) phải lớn hơn 0.");
+        if (request.getQuantity() == null || request.getQuantity() < 0) {
+            throw new BadRequestException("Số lượng sách không hợp lệ");
         }
-        if (sold < 0) {
-            throw new RuntimeException("Trường sold phải >= 0.");
+        if (request.getCategoryName() == null || request.getCategoryName().trim().isEmpty()) {
+            throw new BadRequestException("Tên danh mục không được để trống");
         }
-        if (quantity < 0) {
-            throw new RuntimeException("Trường quantity phải >= 0.");
+        
+        try {
+            // Xử lý category
+            Category category = categoryRepository.findByName(request.getCategoryName())
+                .orElseGet(() -> {
+                    log.info("Tạo danh mục mới: {}", request.getCategoryName());
+                    Category newCategory = new Category();
+                    newCategory.setName(request.getCategoryName());
+                    newCategory.setDescription("Danh mục: " + request.getCategoryName());
+                    return categoryRepository.save(newCategory);
+                });
+            log.info("Đã xử lý category: {} (ID: {})", category.getName(), category.getId());
+            
+            // Tạo đối tượng Book
+            Book book = new Book();
+            book.setMainText(request.getMainText().trim());
+            book.setAuthor(request.getAuthor().trim());
+            book.setPrice(request.getPrice());
+            book.setSold(request.getSold() != null ? request.getSold() : 0);
+            book.setQuantity(request.getQuantity());
+            book.setCategory(category);
+            book.setCategoryId(category.getId());
+            log.info("Đã set category và categoryId cho sách: {}", category.getId());
+            
+            // Xử lý ảnh
+            if (request.getImageFile() != null && !request.getImageFile().isEmpty()) {
+                log.info("Bắt đầu xử lý ảnh từ file: {}", request.getImageFile().getOriginalFilename());
+                try {
+                    Book.Image image = imageProcessingService.processAndUploadBookImage(request.getImageFile());
+                    if (image == null || !image.isValid()) {
+                        throw new BadRequestException("Không thể xử lý ảnh sách");
+                    }
+                    book.setImage(image);
+                    log.info("Đã xử lý và upload ảnh thành công: {}", image.getOriginal());
+                } catch (Exception e) {
+                    log.error("Lỗi khi xử lý ảnh: {}", e.getMessage());
+                    throw new BadRequestException("Lỗi khi xử lý ảnh: " + e.getMessage());
+                }
+            } else if (request.getImageUrl() != null && !request.getImageUrl().trim().isEmpty()) {
+                log.info("Sử dụng URL ảnh: {}", request.getImageUrl());
+                Book.Image image = Book.Image.fromUrl(request.getImageUrl());
+                if (image == null) {
+                    throw new BadRequestException("URL ảnh không hợp lệ");
+                }
+                book.setImage(image);
+            } else {
+                log.info("Không có ảnh được cung cấp cho sách");
+                book.setImage(null);
+            }
+            
+            // Verify book data before saving
+            if (book.getCategoryId() == null) {
+                throw new BadRequestException("CategoryId không được để trống");
+            }
+            
+            // Lưu sách
+            Book savedBook = bookRepository.save(book);
+            log.info("Đã lưu sách thành công với ID: {}", savedBook.getId());
+            
+            // Verify saved data
+            if (savedBook.getId() == null) {
+                throw new BadRequestException("Không thể lưu sách: ID không được tạo");
+            }
+            
+            if (savedBook.getImage() != null) {
+                log.info("Sách có ảnh: {}", savedBook.getImage().getOriginal());
+            } else {
+                log.info("Sách không có ảnh");
+            }
+            
+            // Tạo response
+            BookResponseDTO response = new BookResponseDTO(savedBook);
+            log.info("Đã tạo response với thông tin ảnh: {}", 
+                response.getImage() != null ? "có ảnh" : "không có ảnh");
+            return response;
+            
+        } catch (BadRequestException e) {
+            log.error("Lỗi khi thêm sách: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Lỗi không mong muốn khi thêm sách: {}", e.getMessage(), e);
+            throw new BadRequestException("Không thể lưu sách: " + e.getMessage());
         }
-        Book.Image image = imageProcessingService.processAndUploadBookImage(file);
-        Book book = new Book();
-        book.setImage(image);
-        book.setMainText(mainText);
-        book.setAuthor(author);
-        book.setPrice(price);
-        book.setSold(sold);
-        book.setQuantity(quantity);
-        book.setCategoryId(categoryId);
-        book.setCreatedAt(LocalDateTime.now());
-        book.setUpdatedAt(LocalDateTime.now());
-        Book saved = bookRepository.save(book);
-        return new BookSimpleDTO(
-            saved.getId(),
-            saved.getImage(),
-            saved.getMainText(),
-            saved.getAuthor(),
-            saved.getPrice(),
-            saved.getSold(),
-            saved.getQuantity(),
-            saved.getCategoryId()
-        );
     }
 
     @Override
     @Transactional
-    public Book updateBook(Book book) {
-        logger.info("Bắt đầu cập nhật sách với ID: {}", book.getId());
-        Book existingBook = null;
+    public BookResponseDTO updateBook(UpdateBookRequest request) throws BadRequestException {
         try {
-            // Kiểm tra sách tồn tại
-            existingBook = bookRepository.findById(book.getId())
-                .orElseThrow(() -> new BookException("Không tìm thấy sách với ID: " + book.getId()));
+            Book book = bookRepository.findById(request.getId())
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy sách với ID: " + request.getId()));
 
-            // Validate các trường không được null hoặc rỗng
-            validateBookFields(book);
-
-            // Kiểm tra trùng tên sách (chỉ kiểm tra nếu tên sách thay đổi)
-            if (!existingBook.getMainText().equals(book.getMainText()) && 
-                bookRepository.existsByMainText(book.getMainText())) {
-                throw new BookException("Sách với tên '" + book.getMainText() + "' đã tồn tại trong hệ thống.");
+            if (request.getMainText() != null) book.setMainText(request.getMainText());
+            if (request.getAuthor() != null) book.setAuthor(request.getAuthor());
+            if (request.getPrice() != null) book.setPrice(request.getPrice());
+            if (request.getSold() != null) book.setSold(request.getSold());
+            if (request.getQuantity() != null) book.setQuantity(request.getQuantity());
+            
+            if (request.getCategoryId() != null) {
+                Category category = categoryRepository.findById(request.getCategoryId())
+                    .orElseThrow(() -> new BadRequestException("Không tìm thấy thể loại với ID: " + request.getCategoryId()));
+                book.setCategoryId(request.getCategoryId());
             }
 
-            // Lưu trạng thái cũ để rollback nếu cần
-            Book oldState = new Book();
-            copyBookState(existingBook, oldState);
+            // Xử lý ảnh
+            if (request.getImageFile() != null && !request.getImageFile().isEmpty()) {
+                log.info("Bắt đầu xử lý ảnh mới từ file cho sách ID: {}", book.getId());
+                // Xóa ảnh cũ nếu có
+                if (book.getImage() != null) {
+                    log.info("Xóa ảnh cũ của sách: {}", book.getId());
+                    imageProcessingService.deleteOldBookImage(book.getImage());
+                }
+                
+                // Upload ảnh mới
+                try {
+                    Book.Image image = imageProcessingService.processAndUploadBookImage(request.getImageFile());
+                    if (image == null || !image.isValid()) {
+                        throw new BadRequestException("Không thể xử lý ảnh sách");
+                    }
+                    book.setImage(image);
+                    log.info("Đã xử lý và upload ảnh mới thành công: {}", image.getOriginal());
+                } catch (Exception e) {
+                    log.error("Lỗi khi xử lý ảnh: {}", e.getMessage());
+                    throw new BadRequestException("Lỗi khi xử lý ảnh: " + e.getMessage());
+                }
+            } else if (request.getImageUrl() != null && !request.getImageUrl().trim().isEmpty()) {
+                log.info("Cập nhật ảnh sách ID: {} với URL: {}", book.getId(), request.getImageUrl());
+                // Xóa ảnh cũ nếu có
+                if (book.getImage() != null) {
+                    log.info("Xóa ảnh cũ của sách: {}", book.getId());
+                    imageProcessingService.deleteOldBookImage(book.getImage());
+                }
+                
+                // Tạo ảnh mới với URL được cung cấp
+                Book.Image image = Book.Image.fromUrl(request.getImageUrl());
+                if (image == null) {
+                    throw new BadRequestException("URL ảnh không hợp lệ");
+                }
+                book.setImage(image);
+                log.info("Đã cập nhật ảnh sách với URL: {}", request.getImageUrl());
+            }
 
-            // Cập nhật các trường từ book vào existingBook
-            updateBookFields(existingBook, book);
-            
-            // Lưu thay đổi
-            Book updatedBook = bookRepository.save(existingBook);
-            logger.info("Cập nhật sách thành công. ID: {}, Tên sách: {}", updatedBook.getId(), updatedBook.getMainText());
-            return updatedBook;
-
-        } catch (BookException e) {
-            logger.error("Lỗi khi cập nhật sách: {}", e.getMessage());
+            Book updatedBook = bookRepository.save(book);
+            log.info("Đã cập nhật sách thành công - ID: {}, Category: {}", 
+                    updatedBook.getId(), 
+                    updatedBook.getCategoryId());
+                    
+            return new BookResponseDTO(updatedBook);
+        } catch (BadRequestException e) {
+            log.error("Lỗi khi cập nhật sách: {}", e.getMessage());
             throw e;
         } catch (Exception e) {
-            logger.error("Lỗi không xác định khi cập nhật sách: {}", e.getMessage());
-            // Rollback nếu có lỗi
-            if (existingBook != null) {
-                try {
-                    bookRepository.save(existingBook);
-                    logger.info("Đã rollback trạng thái sách về trước khi cập nhật");
-                } catch (Exception rollbackEx) {
-                    logger.error("Lỗi khi rollback: {}", rollbackEx.getMessage());
-                }
-            }
-            throw new BookException("Lỗi khi cập nhật sách: " + e.getMessage(), e);
+            log.error("Lỗi không mong muốn khi cập nhật sách: {}", e.getMessage(), e);
+            throw new BadRequestException("Lỗi khi cập nhật sách: " + e.getMessage());
         }
-    }
-
-    private void validateBookFields(Book book) {
-        if (book.getMainText() == null || book.getMainText().trim().isEmpty()) {
-            throw new BookException("Trường mainText không được để trống.");
-        }
-        if (book.getAuthor() == null || book.getAuthor().trim().isEmpty()) {
-            throw new BookException("Trường author không được để trống.");
-        }
-        if (book.getCategoryId() == null || book.getCategoryId().trim().isEmpty()) {
-            throw new BookException("Trường categoryId không được để trống.");
-        }
-        if (book.getPrice() <= 0) {
-            throw new BookException("Giá (price) phải lớn hơn 0.");
-        }
-        if (book.getSold() < 0) {
-            throw new BookException("Trường sold phải >= 0.");
-        }
-        if (book.getQuantity() < 0) {
-            throw new BookException("Trường quantity phải >= 0.");
-        }
-    }
-
-    private void updateBookFields(Book existingBook, Book newBook) {
-        existingBook.setMainText(newBook.getMainText());
-        existingBook.setAuthor(newBook.getAuthor());
-        existingBook.setPrice(newBook.getPrice());
-        existingBook.setSold(newBook.getSold());
-        existingBook.setQuantity(newBook.getQuantity());
-        existingBook.setCategoryId(newBook.getCategoryId());
-        existingBook.setUpdatedAt(LocalDateTime.now());
-
-        // Chỉ cập nhật ảnh nếu có ảnh mới
-        if (newBook.getImage() != null) {
-            existingBook.setImage(newBook.getImage());
-        }
-    }
-
-    private void copyBookState(Book source, Book target) {
-        target.setId(source.getId());
-        target.setMainText(source.getMainText());
-        target.setAuthor(source.getAuthor());
-        target.setPrice(source.getPrice());
-        target.setSold(source.getSold());
-        target.setQuantity(source.getQuantity());
-        target.setCategoryId(source.getCategoryId());
-        target.setImage(source.getImage());
-        target.setCreatedAt(source.getCreatedAt());
-        target.setUpdatedAt(source.getUpdatedAt());
     }
 
     @Override
-    public void deleteBook(String id) {
-        Book book = bookRepository.findById(id).orElseThrow(() -> new RuntimeException("Book not found"));
-        bookRepository.delete(book);
-    }
-
-    @Override
-    public Book updateBookImage(String id, MultipartFile image) throws IOException {
-        Book book = bookRepository.findById(id).orElseThrow(() -> new RuntimeException("Book not found"));
-        Book.Image newImage = imageProcessingService.processAndUploadBookImage(image);
-        book.setImage(newImage);
-        return bookRepository.save(book);
-    }
-
-    @Override
-    public Page<BookSimpleDTO> getBooksPaged(Pageable pageable) {
-        return bookRepository.findAll(pageable)
-            .map(book -> new BookSimpleDTO(
-                book.getId(),
-                book.getImage(),
-                book.getMainText(),
-                book.getAuthor(),
-                book.getPrice(),
-                book.getSold(),
-                book.getQuantity(),
-                book.getCategoryId()
-            ));
-    }
-
-    @Override
-    public Page<BookSimpleDTO> getBooksByCategoryPaged(String categoryId, Pageable pageable) {
+    @Transactional
+    public void deleteBook(String id) throws BadRequestException {
         try {
-            // Tạo query để tìm kiếm theo categoryId
-            Query query = new Query();
-            query.addCriteria(Criteria.where("categoryId").is(categoryId));
-            query.with(pageable);
-            
-            // Thực hiện tìm kiếm
-            List<Book> books = mongoTemplate.find(query, Book.class);
-            long total = mongoTemplate.count(Query.of(query).limit(-1).skip(-1), Book.class);
-            
-            // Chuyển đổi sang DTO
-            List<BookSimpleDTO> bookDTOs = books.stream()
-                .map(book -> new BookSimpleDTO(
-                    book.getId(),
-                    book.getImage(),
-                    book.getMainText(),
-                    book.getAuthor(),
-                    book.getPrice(),
-                    book.getSold(),
-                    book.getQuantity(),
-                    book.getCategoryId()
-                ))
-                .collect(Collectors.toList());
-                
-            return new PageImpl<>(bookDTOs, pageable, total);
+            if (!bookRepository.existsById(id)) {
+                throw new BadRequestException("Không tìm thấy sách với ID: " + id);
+            }
+            bookRepository.deleteById(id);
+        } catch (BadRequestException e) {
+            throw e;
         } catch (Exception e) {
-            logger.error("Lỗi khi lấy danh sách sách theo danh mục: {}", e.getMessage());
-            throw new RuntimeException("Lỗi khi lấy danh sách sách theo danh mục: " + e.getMessage());
+            throw new BadRequestException("Lỗi khi xóa sách: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public Page<BookResponseDTO> getBooksByCategoryPaged(String categoryId, Pageable pageable) throws BadRequestException {
+        try {
+            if (!categoryRepository.existsById(categoryId)) {
+                throw new BadRequestException("Không tìm thấy thể loại với ID: " + categoryId);
+            }
+
+            Page<Book> bookPage = bookRepository.findByCategoryId(categoryId, pageable);
+            List<BookResponseDTO> bookDTOs = bookPage.getContent().stream()
+                .map(BookResponseDTO::new)
+                .collect(Collectors.toList());
+            return new PageImpl<>(bookDTOs, pageable, bookPage.getTotalElements());
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new BadRequestException("Lỗi khi lấy danh sách sách theo thể loại: " + e.getMessage());
         }
     }
 } 

@@ -2,10 +2,12 @@ package com.project2.BookStore.service.impl;
 
 import com.project2.BookStore.model.CartItem;
 import com.project2.BookStore.model.Book;
+import com.project2.BookStore.model.User;
 import com.project2.BookStore.dto.CartItemDTO;
 import com.project2.BookStore.dto.CartItemDetailDTO;
 import com.project2.BookStore.repository.CartItemRepository;
 import com.project2.BookStore.repository.BookRepository;
+import com.project2.BookStore.repository.UserRepository;
 import com.project2.BookStore.service.CartService;
 import com.project2.BookStore.exception.BadRequestException;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,13 +17,12 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import java.util.ArrayList;
 
+@Slf4j
 @Service
 public class CartServiceImpl implements CartService {
-    private static final Logger logger = LoggerFactory.getLogger(CartServiceImpl.class);
     private static final int MAX_TOTAL_ITEMS = 500000000;
     private static final long MAX_TOTAL_VALUE = 2000000000; 
 
@@ -31,31 +32,42 @@ public class CartServiceImpl implements CartService {
     @Autowired
     private BookRepository bookRepository;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private void validateCartLimits(String userId, int newQuantity, long newItemPrice) {
-        // Tính tổng số lượng hiện tại trong giỏ hàng
-        int currentTotalItems = cartItemRepository.findByUserId(userId).stream()
-            .mapToInt(CartItem::getQuantity)
-            .sum();
+        try {
+            // Tính tổng số lượng hiện tại trong giỏ hàng
+            int currentTotalItems = cartItemRepository.findByUser_Id(userId).stream()
+                .mapToInt(CartItem::getQuantity)
+                .sum();
 
-        // Tính tổng giá trị hiện tại của giỏ hàng
-        long currentTotalValue = cartItemRepository.findByUserId(userId).stream()
-            .mapToLong(CartItem::getTotalPrice)
-            .sum();
+            // Tính tổng giá trị hiện tại của giỏ hàng
+            long currentTotalValue = cartItemRepository.findByUser_Id(userId).stream()
+                .mapToLong(CartItem::getTotalPrice)
+                .sum();
 
-        // Kiểm tra tổng số lượng
-        if (currentTotalItems + newQuantity > MAX_TOTAL_ITEMS) {
-            throw new BadRequestException(
-                String.format("Tổng số lượng sách trong giỏ không được vượt quá %d. Hiện tại: %d", 
-                    MAX_TOTAL_ITEMS, currentTotalItems)
-            );
-        }
+            // Kiểm tra tổng số lượng
+            if (currentTotalItems + newQuantity > MAX_TOTAL_ITEMS) {
+                throw new BadRequestException(
+                    String.format("Tổng số lượng sách trong giỏ không được vượt quá %d. Hiện tại: %d", 
+                        MAX_TOTAL_ITEMS, currentTotalItems)
+                );
+            }
 
-        // Kiểm tra tổng giá trị
-        if (currentTotalValue + (newItemPrice * newQuantity) > MAX_TOTAL_VALUE) {
-            throw new BadRequestException(
-                String.format("Tổng giá trị giỏ hàng không được vượt quá %d. Hiện tại: %d", 
-                    MAX_TOTAL_VALUE, currentTotalValue)
-            );
+            // Kiểm tra tổng giá trị
+            if (currentTotalValue + (newItemPrice * newQuantity) > MAX_TOTAL_VALUE) {
+                throw new BadRequestException(
+                    String.format("Tổng giá trị giỏ hàng không được vượt quá %d. Hiện tại: %d", 
+                        MAX_TOTAL_VALUE, currentTotalValue)
+                );
+            }
+        } catch (BadRequestException e) {
+            log.warn("Lỗi khi kiểm tra giới hạn giỏ hàng: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Lỗi không mong muốn khi kiểm tra giới hạn giỏ hàng: {}", e.getMessage());
+            throw new BadRequestException("Không thể kiểm tra giới hạn giỏ hàng: " + e.getMessage());
         }
     }
 
@@ -74,63 +86,65 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional
     public CartItem addToCart(String userId, CartItemDTO cartItemDTO) {
-        logger.info("Bắt đầu thêm sách vào giỏ hàng. UserId: {}, BookId: {}, Quantity: {}", 
-            userId, cartItemDTO.getBookId(), cartItemDTO.getQuantity());
-
-        // Kiểm tra sách tồn tại và hợp lệ
-        Book book = bookRepository.findById(cartItemDTO.getBookId())
-            .orElseThrow(() -> new BadRequestException("Không tìm thấy sách"));
-        validateBook(book);
-
-        // Kiểm tra số lượng sách có đủ không
-        if (book.getQuantity() < cartItemDTO.getQuantity()) {
-            throw new BadRequestException(
-                String.format("Số lượng sách trong kho không đủ. Còn lại: %d", book.getQuantity())
-            );
-        }
-
-        // Kiểm tra giới hạn giỏ hàng
-        validateCartLimits(userId, cartItemDTO.getQuantity(), book.getPrice());
-
-        // Kiểm tra xem sách đã có trong giỏ hàng chưa
-        Optional<CartItem> existingItem = cartItemRepository.findByUserIdAndBookId(userId, cartItemDTO.getBookId());
-        
+        log.info("Bắt đầu thêm sách vào giỏ hàng. UserId: {}, BookId: {}", userId, cartItemDTO.getBookId());
         try {
+            // Validate user
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy người dùng"));
+
+            // Validate book
+            Book book = bookRepository.findById(cartItemDTO.getBookId())
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy sách"));
+
+            // Validate book quantity
+            if (book.getQuantity() < cartItemDTO.getQuantity()) {
+                throw new BadRequestException(
+                    String.format("Số lượng sách '%s' trong kho không đủ. Còn lại: %d", 
+                        book.getMainText(), book.getQuantity())
+                );
+            }
+
+            // Validate cart limits
+            validateCartLimits(userId, cartItemDTO.getQuantity(), book.getPrice());
+
+            // Check if book already in cart
+            Optional<CartItem> existingItem = cartItemRepository.findByUser_IdAndBook_Id(userId, cartItemDTO.getBookId());
+            CartItem cartItem;
+
             if (existingItem.isPresent()) {
-                // Nếu đã có, cập nhật số lượng
-                CartItem item = existingItem.get();
-                int newQuantity = item.getQuantity() + cartItemDTO.getQuantity();
+                cartItem = existingItem.get();
+                int newQuantity = cartItem.getQuantity() + cartItemDTO.getQuantity();
                 
-                // Kiểm tra lại số lượng tổng
-                if (book.getQuantity() < newQuantity) {
+                // Validate total quantity
+                if (newQuantity > book.getQuantity()) {
                     throw new BadRequestException(
-                        String.format("Số lượng sách trong kho không đủ. Còn lại: %d", book.getQuantity())
+                        String.format("Tổng số lượng sách '%s' trong giỏ vượt quá số lượng trong kho. Còn lại: %d", 
+                            book.getMainText(), book.getQuantity())
                     );
                 }
                 
-                item.setQuantity(newQuantity);
-                item.setTotalPrice(item.getPrice() * newQuantity);
-                CartItem savedItem = cartItemRepository.save(item);
-                logger.info("Cập nhật số lượng sách trong giỏ hàng thành công. CartItemId: {}", savedItem.getId());
-                return savedItem;
+                cartItem.setQuantity(newQuantity);
+                cartItem.setTotalPrice(book.getPrice() * newQuantity);
+                log.info("Cập nhật số lượng sách trong giỏ hàng. BookId: {}, Số lượng mới: {}", 
+                    cartItemDTO.getBookId(), newQuantity);
             } else {
-                // Nếu chưa có, tạo mới
-                CartItem newItem = new CartItem();
-                newItem.setId(UUID.randomUUID().toString());
-                newItem.setUserId(userId);
-                newItem.setBookId(book.getId());
-                newItem.setBookTitle(book.getMainText());
-                newItem.setBookImage(book.getImage() != null ? book.getImage().getOriginal() : null);
-                newItem.setPrice(book.getPrice());
-                newItem.setQuantity(cartItemDTO.getQuantity());
-                newItem.setTotalPrice(book.getPrice() * cartItemDTO.getQuantity());
-                
-                CartItem savedItem = cartItemRepository.save(newItem);
-                logger.info("Thêm sách mới vào giỏ hàng thành công. CartItemId: {}", savedItem.getId());
-                return savedItem;
+                cartItem = new CartItem();
+                cartItem.setUser(user);
+                cartItem.setBook(book);
+                cartItem.setQuantity(cartItemDTO.getQuantity());
+                cartItem.setTotalPrice(book.getPrice() * cartItemDTO.getQuantity());
+                log.info("Thêm sách mới vào giỏ hàng. BookId: {}, Số lượng: {}", 
+                    cartItemDTO.getBookId(), cartItemDTO.getQuantity());
             }
+
+            CartItem savedItem = cartItemRepository.save(cartItem);
+            log.info("Lưu giỏ hàng thành công. CartItemId: {}", savedItem.getId());
+            return savedItem;
+        } catch (BadRequestException e) {
+            log.warn("Lỗi khi thêm sách vào giỏ hàng: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
-            logger.error("Lỗi khi thêm sách vào giỏ hàng: {}", e.getMessage(), e);
+            log.error("Lỗi không mong muốn khi thêm sách vào giỏ hàng: {}", e.getMessage());
             throw new BadRequestException("Không thể thêm sách vào giỏ hàng: " + e.getMessage());
         }
     }
@@ -138,126 +152,124 @@ public class CartServiceImpl implements CartService {
     @Override
     @Transactional
     public CartItem updateCartItem(String userId, CartItemDTO cartItemDTO) {
-        logger.info("Bắt đầu cập nhật giỏ hàng. UserId: {}, BookId: {}, Quantity: {}", 
+        log.info("Bắt đầu cập nhật giỏ hàng. UserId: {}, BookId: {}, Quantity: {}", 
             userId, cartItemDTO.getBookId(), cartItemDTO.getQuantity());
 
-        // Kiểm tra sách tồn tại và hợp lệ
-        Book book = bookRepository.findById(cartItemDTO.getBookId())
-            .orElseThrow(() -> new BadRequestException("Không tìm thấy sách"));
-        validateBook(book);
-
-        // Kiểm tra số lượng sách có đủ không
-        if (book.getQuantity() < cartItemDTO.getQuantity()) {
-            throw new BadRequestException(
-                String.format("Số lượng sách trong kho không đủ. Còn lại: %d", book.getQuantity())
-            );
-        }
-
-        // Lấy item từ giỏ hàng
-        CartItem item = cartItemRepository.findByUserIdAndBookId(userId, cartItemDTO.getBookId())
-            .orElseThrow(() -> new BadRequestException("Không tìm thấy sách trong giỏ hàng"));
-
-        // Kiểm tra giới hạn giỏ hàng (trừ đi số lượng cũ và cộng số lượng mới)
-        validateCartLimits(userId, cartItemDTO.getQuantity() - item.getQuantity(), book.getPrice());
-
         try {
-            // Kiểm tra giá sách có thay đổi không
-            if (book.getPrice() != item.getPrice()) {
-                logger.warn("Giá sách đã thay đổi. BookId: {}, OldPrice: {}, NewPrice: {}", 
-                    book.getId(), item.getPrice(), book.getPrice());
-                item.setPrice(book.getPrice());
+            // Kiểm tra sách tồn tại và hợp lệ
+            Book book = bookRepository.findById(cartItemDTO.getBookId())
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy sách"));
+            validateBook(book);
+
+            // Kiểm tra số lượng sách có đủ không
+            if (book.getQuantity() < cartItemDTO.getQuantity()) {
+                throw new BadRequestException(
+                    String.format("Số lượng sách trong kho không đủ. Còn lại: %d", book.getQuantity())
+                );
             }
 
-            // Cập nhật số lượng và tổng tiền
+            // Lấy item từ giỏ hàng
+            CartItem item = cartItemRepository.findByUser_IdAndBook_Id(userId, cartItemDTO.getBookId())
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy sách trong giỏ hàng"));
+
+            // Kiểm tra giới hạn giỏ hàng (trừ đi số lượng cũ và cộng số lượng mới)
+            validateCartLimits(userId, cartItemDTO.getQuantity() - item.getQuantity(), book.getPrice());
+
+            // Cập nhật số lượng và tổng giá
             item.setQuantity(cartItemDTO.getQuantity());
-            item.setTotalPrice(item.getPrice() * cartItemDTO.getQuantity());
-            
-            CartItem savedItem = cartItemRepository.save(item);
-            logger.info("Cập nhật giỏ hàng thành công. CartItemId: {}", savedItem.getId());
-            return savedItem;
+            item.setTotalPrice(book.getPrice() * cartItemDTO.getQuantity());
+
+            CartItem updatedItem = cartItemRepository.save(item);
+            log.info("Cập nhật giỏ hàng thành công. CartItemId: {}", updatedItem.getId());
+            return updatedItem;
+        } catch (BadRequestException e) {
+            log.warn("Lỗi khi cập nhật giỏ hàng: {}", e.getMessage());
+            throw e;
         } catch (Exception e) {
-            logger.error("Lỗi khi cập nhật giỏ hàng: {}", e.getMessage(), e);
+            log.error("Lỗi không mong muốn khi cập nhật giỏ hàng: {}", e.getMessage());
             throw new BadRequestException("Không thể cập nhật giỏ hàng: " + e.getMessage());
         }
     }
 
     @Override
     @Transactional
-    public void removeFromCart(String userId, String bookId) {
-        cartItemRepository.deleteByUserIdAndBookId(userId, bookId);
+    public CartItem removeFromCart(String userId, String bookId) {
+        log.info("Bắt đầu xóa sách khỏi giỏ hàng. UserId: {}, BookId: {}", userId, bookId);
+
+        try {
+            CartItem item = cartItemRepository.findByUser_IdAndBook_Id(userId, bookId)
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy sách trong giỏ hàng"));
+
+            cartItemRepository.delete(item);
+            log.info("Xóa sách khỏi giỏ hàng thành công. CartItemId: {}", item.getId());
+            return item;
+        } catch (BadRequestException e) {
+            log.warn("Lỗi khi xóa sách khỏi giỏ hàng: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Lỗi không mong muốn khi xóa sách khỏi giỏ hàng: {}", e.getMessage());
+            throw new BadRequestException("Không thể xóa sách khỏi giỏ hàng: " + e.getMessage());
+        }
     }
 
     @Override
     @Transactional
-    public void clearCart(String userId) {
-        cartItemRepository.deleteByUserId(userId);
+    public List<CartItemDetailDTO> clearCart(String userId) {
+        log.info("Bắt đầu xóa toàn bộ giỏ hàng. UserId: {}", userId);
+
+        try {
+            List<CartItem> items = cartItemRepository.findByUser_Id(userId);
+            if (items.isEmpty()) {
+                return new ArrayList<>();
+            }
+
+            List<CartItemDetailDTO> removedItems = items.stream()
+                .map(CartItemDetailDTO::new)
+                .collect(Collectors.toList());
+
+            cartItemRepository.deleteAll(items);
+            log.info("Xóa toàn bộ giỏ hàng thành công. Số lượng items: {}", items.size());
+            return removedItems;
+        } catch (Exception e) {
+            log.error("Lỗi không mong muốn khi xóa toàn bộ giỏ hàng: {}", e.getMessage());
+            throw new BadRequestException("Không thể xóa toàn bộ giỏ hàng: " + e.getMessage());
+        }
     }
 
     @Override
     public List<CartItemDetailDTO> getCartItems(String userId) {
+        log.info("Bắt đầu lấy danh sách sách trong giỏ hàng. UserId: {}", userId);
+
         try {
-            logger.info("Bắt đầu lấy danh sách giỏ hàng cho user: {}", userId);
-            
-            List<CartItem> cartItems = cartItemRepository.findByUserId(userId);
-            if (cartItems.isEmpty()) {
-                logger.info("Giỏ hàng trống cho user: {}", userId);
-                return new ArrayList<>();
-            }
+            List<CartItem> items = cartItemRepository.findByUser_Id(userId);
+            List<CartItemDetailDTO> cartItems = items.stream()
+                .map(CartItemDetailDTO::new)
+                .collect(Collectors.toList());
 
-            List<CartItemDetailDTO> result = new ArrayList<>();
-            for (CartItem item : cartItems) {
-                try {
-                    Optional<Book> bookOpt = bookRepository.findById(item.getBookId());
-                    if (bookOpt.isPresent()) {
-                        Book book = bookOpt.get();
-                        CartItemDetailDTO dto = CartItemDetailDTO.fromCartItem(
-                            item,
-                            book.getQuantity(),
-                            book.getAuthor(),
-                            book.getCategoryId()
-                        );
-                        result.add(dto);
-                    } else {
-                        logger.warn("Sách không tồn tại trong database. BookId: {}", item.getBookId());
-                        // Thêm item vào kết quả với thông tin sách mặc định
-                        CartItemDetailDTO dto = CartItemDetailDTO.fromCartItem(
-                            item,
-                            0,  // Số lượng có sẵn = 0 vì sách không tồn tại
-                            "Sách không còn tồn tại",
-                            "Không xác định"
-                        );
-                        result.add(dto);
-                    }
-                } catch (Exception e) {
-                    logger.error("Lỗi khi xử lý item trong giỏ hàng. ItemId: {}, Error: {}", 
-                        item.getId(), e.getMessage(), e);
-                    // Bỏ qua item lỗi và tiếp tục với item tiếp theo
-                    continue;
-                }
-            }
-
-            logger.info("Lấy danh sách giỏ hàng thành công. Số lượng items: {}", result.size());
-            return result;
+            log.info("Lấy danh sách sách trong giỏ hàng thành công. Số lượng: {}", cartItems.size());
+            return cartItems;
         } catch (Exception e) {
-            logger.error("Lỗi khi lấy danh sách giỏ hàng. UserId: {}, Error: {}", 
-                userId, e.getMessage(), e);
-            throw new BadRequestException("Không thể lấy danh sách giỏ hàng: " + e.getMessage());
+            log.error("Lỗi không mong muốn khi lấy danh sách sách trong giỏ hàng: {}", e.getMessage());
+            throw new BadRequestException("Không thể lấy danh sách sách trong giỏ hàng: " + e.getMessage());
         }
     }
 
     @Override
     public CartItemDetailDTO getCartItem(String userId, String bookId) {
-        CartItem item = cartItemRepository.findByUserIdAndBookId(userId, bookId)
-            .orElseThrow(() -> new BadRequestException("Không tìm thấy sách trong giỏ hàng"));
-        
-        Book book = bookRepository.findById(bookId)
-            .orElseThrow(() -> new BadRequestException("Không tìm thấy sách"));
-            
-        return CartItemDetailDTO.fromCartItem(
-            item,
-            book.getQuantity(),
-            book.getAuthor(),
-            book.getCategoryId()
-        );
+        log.info("Bắt đầu lấy thông tin sách trong giỏ hàng. UserId: {}, BookId: {}", userId, bookId);
+
+        try {
+            CartItem item = cartItemRepository.findByUser_IdAndBook_Id(userId, bookId)
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy sách trong giỏ hàng"));
+
+            log.info("Lấy thông tin sách trong giỏ hàng thành công. CartItemId: {}", item.getId());
+            return new CartItemDetailDTO(item);
+        } catch (BadRequestException e) {
+            log.warn("Lỗi khi lấy thông tin sách trong giỏ hàng: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Lỗi không mong muốn khi lấy thông tin sách trong giỏ hàng: {}", e.getMessage());
+            throw new BadRequestException("Không thể lấy thông tin sách trong giỏ hàng: " + e.getMessage());
+        }
     }
 } 

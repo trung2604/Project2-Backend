@@ -8,8 +8,8 @@ import java.util.List;
 public interface CartService {
     CartItem addToCart(String userId, CartItemDTO cartItemDTO);
     CartItem updateCartItem(String userId, CartItemDTO cartItemDTO);
-    void removeFromCart(String userId, String bookId);
-    void clearCart(String userId);
+    CartItem removeFromCart(String userId, String bookId);
+    List<CartItemDetailDTO> clearCart(String userId);
     List<CartItemDetailDTO> getCartItems(String userId);
     CartItemDetailDTO getCartItem(String userId, String bookId);
 } 
