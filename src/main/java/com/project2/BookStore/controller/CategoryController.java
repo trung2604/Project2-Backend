@@ -24,25 +24,26 @@ public class CategoryController {
     private CategoryService categoryService;
 
     @GetMapping("/category-count")
-    public ResponseEntity<ApiResponse<List<CategoryCountDTO>>> getBookCountByCategory() {
+    public ResponseEntity<ApiResponseDTO> getBookCountByCategory() {
         try {
             List<CategoryCountDTO> result = categoryService.countCategories();
-            return ResponseEntity.ok(ApiResponse.success(result, "Lấy thống kê số lượng sách theo danh mục thành công"));
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Lấy thống kê số lượng sách theo danh mục thành công", result));
         } catch (BadRequestException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.serverError("Lỗi server: " + e.getMessage()));
+                .body(new ApiResponseDTO(false, "Lỗi server: " + e.getMessage(), null));
         }
     }
 
     @GetMapping()
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getAllCategories(
+    public ResponseEntity<ApiResponseDTO> getAllCategories(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         try {
             Pageable pageable = PageRequest.of(page, size);
-            Page<CategoryResponseDTO> categories = categoryService.getAllCategories(pageable);
+            Page<CategoryDTO> categories = categoryService.getAllCategories(pageable);
             
             Map<String, Object> meta = new HashMap<>();
             meta.put("current", page);
@@ -54,72 +55,98 @@ public class CategoryController {
             data.put("meta", meta);
             data.put("result", categories.getContent());
 
-            return ResponseEntity.ok(ApiResponse.success(data, "Lấy danh sách danh mục thành công"));
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Lấy danh sách danh mục thành công", data));
         } catch (BadRequestException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.serverError("Lỗi server: " + e.getMessage()));
+                .body(new ApiResponseDTO(false, "Lỗi server: " + e.getMessage(), null));
         }
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ApiResponse<CategoryResponseDTO>> getCategoryById(@PathVariable String id) {
+    public ResponseEntity<ApiResponseDTO> getCategoryById(@PathVariable String id) {
         try {
-            CategoryResponseDTO category = categoryService.getCategoryById(id);
-            return ResponseEntity.ok(ApiResponse.success(category, "Lấy thông tin danh mục thành công"));
+            CategoryDTO category = categoryService.getCategoryById(id);
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Lấy thông tin danh mục thành công", category));
         } catch (BadRequestException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.serverError("Lỗi server: " + e.getMessage()));
+                .body(new ApiResponseDTO(false, "Lỗi server: " + e.getMessage(), null));
         }
     }
 
     @PostMapping("/add")
-    public ResponseEntity<ApiResponse<CategoryResponseDTO>> addCategory(
+    public ResponseEntity<ApiResponseDTO> addCategory(
             @Valid @RequestBody AddCategoryRequest addCategoryRequest) {
         try {
-            CategoryResponseDTO category = categoryService.addCategory(addCategoryRequest);
-            return ResponseEntity.ok(ApiResponse.success(category, "Thêm danh mục thành công"));
+            CategoryDTO category = categoryService.addCategory(addCategoryRequest);
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Thêm danh mục thành công", category));
         } catch (BadRequestException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.serverError("Lỗi server: " + e.getMessage()));
+                .body(new ApiResponseDTO(false, "Lỗi server: " + e.getMessage(), null));
         }
     }
 
     @PutMapping("/update/{id}")
-    public ResponseEntity<ApiResponse<CategoryResponseDTO>> updateCategory(
+    public ResponseEntity<ApiResponseDTO> updateCategory(
             @PathVariable String id,
             @Valid @RequestBody UpdateCategoryRequest updateCategoryRequest) {
         log.info("Bắt đầu cập nhật danh mục. CategoryId: {}", id);
         try {
             updateCategoryRequest.setId(id);  // Set ID from path variable
-            CategoryResponseDTO category = categoryService.updateCategory(updateCategoryRequest);
+            CategoryDTO category = categoryService.updateCategory(updateCategoryRequest);
             log.info("Cập nhật danh mục thành công. CategoryId: {}", id);
-            return ResponseEntity.ok(ApiResponse.success(category, "Cập nhật danh mục thành công"));
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Cập nhật danh mục thành công", category));
         } catch (BadRequestException e) {
             log.warn("Lỗi khi cập nhật danh mục: {}", e.getMessage());
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
         } catch (Exception e) {
             log.error("Lỗi không mong muốn khi cập nhật danh mục: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.serverError("Lỗi server: " + e.getMessage()));
+                .body(new ApiResponseDTO(false, "Lỗi server: " + e.getMessage(), null));
         }
     }
 
     @DeleteMapping("/delete/{id}")
-    public ResponseEntity<ApiResponse<Void>> deleteCategory(@PathVariable String id) {
+    public ResponseEntity<ApiResponseDTO> deleteCategory(@PathVariable String id) {
+        log.info("Bắt đầu xóa danh mục. CategoryId: {}", id);
         try {
             categoryService.deleteCategory(id);
-            return ResponseEntity.ok(ApiResponse.success(null, "Xóa danh mục thành công"));
+            log.info("Xóa danh mục thành công. CategoryId: {}", id);
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Xóa danh mục thành công", null));
         } catch (BadRequestException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(e.getMessage()));
+            log.warn("Lỗi khi xóa danh mục: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
         } catch (Exception e) {
+            log.error("Lỗi không mong muốn khi xóa danh mục: {}", e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ApiResponse.serverError("Lỗi server: " + e.getMessage()));
+                .body(new ApiResponseDTO(false, "Lỗi server: " + e.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<ApiResponseDTO> searchCategories(@RequestParam String keyword) {
+        log.info("Bắt đầu tìm kiếm danh mục với từ khóa: {}", keyword);
+        try {
+            List<CategoryDTO> categories = categoryService.searchCategories(keyword);
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Tìm kiếm danh mục thành công", categories));
+        } catch (BadRequestException e) {
+            log.warn("Lỗi khi tìm kiếm danh mục: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
+        } catch (Exception e) {
+            log.error("Lỗi không mong muốn khi tìm kiếm danh mục: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponseDTO(false, "Lỗi server: " + e.getMessage(), null));
         }
     }
 } 

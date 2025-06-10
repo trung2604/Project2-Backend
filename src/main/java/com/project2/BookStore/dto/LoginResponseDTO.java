@@ -8,6 +8,13 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class LoginResponseDTO {
+    private String message;
     private String token;
     private UserResponseDTO user;
+
+    public LoginResponseDTO(String token, UserResponseDTO user) {
+        this.message = "Đăng nhập thành công";
+        this.token = token;
+        this.user = user;
+    }
 }

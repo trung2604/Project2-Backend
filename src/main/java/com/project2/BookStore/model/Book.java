@@ -23,15 +23,22 @@ public class Book {
     private String id;
 
     @Embedded
-    @Column(nullable = true)
+    @AttributeOverrides({
+        @AttributeOverride(name = "thumbnail", column = @Column(name = "image_thumbnail")),
+        @AttributeOverride(name = "medium", column = @Column(name = "image_medium")),
+        @AttributeOverride(name = "original", column = @Column(name = "image_original")),
+        @AttributeOverride(name = "format", column = @Column(name = "image_format")),
+        @AttributeOverride(name = "size", column = @Column(name = "image_size")),
+        @AttributeOverride(name = "publicId", column = @Column(name = "image_public_id"))
+    })
     private Image image;
 
     @NotBlank(message = "Tên sách không được để trống")
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "text")
     private String mainText;
 
     @NotBlank(message = "Tác giả không được để trống")
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "text")
     private String author;
 
     @NotNull(message = "Giá sách không được để trống")
@@ -70,22 +77,11 @@ public class Book {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class Image {
-        @Column(name = "image_thumbnail", nullable = true)
         private String thumbnail;
-        
-        @Column(name = "image_medium", nullable = true)
         private String medium;
-        
-        @Column(name = "image_original", nullable = true)
         private String original;
-        
-        @Column(name = "image_format", nullable = true)
         private String format;
-        
-        @Column(name = "image_size", nullable = true)
         private Long size;
-        
-        @Column(name = "image_public_id", nullable = true)
         private String publicId;
 
         public boolean isValid() {

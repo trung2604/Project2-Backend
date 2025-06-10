@@ -1,5 +1,6 @@
 package com.project2.BookStore.dto;
 
+import com.project2.BookStore.model.Book;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -39,4 +40,5 @@ public class AddBookRequest {
 
     private String imageUrl;
     private MultipartFile imageFile;
+    private Book.Image processedImage;
 } 

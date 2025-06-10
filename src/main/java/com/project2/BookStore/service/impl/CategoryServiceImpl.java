@@ -24,86 +24,74 @@ public class CategoryServiceImpl implements CategoryService {
     private CategoryRepository categoryRepository;
 
     @Override
-    public Page<CategoryResponseDTO> getAllCategories(Pageable pageable) throws BadRequestException {
+    public Page<CategoryDTO> getAllCategories(Pageable pageable) throws BadRequestException {
         try {
             Page<Category> categoryPage = categoryRepository.findAll(pageable);
-            return categoryPage.map(CategoryResponseDTO::new);
+            return categoryPage.map(CategoryDTO::new);
         } catch (Exception e) {
-            throw new BadRequestException("Lỗi khi lấy danh sách danh mục: " + e.getMessage());
+            log.error("Lỗi khi lấy danh sách danh mục: {}", e.getMessage());
+            throw new BadRequestException("Không thể lấy danh sách danh mục: " + e.getMessage());
         }
     }
 
     @Override
-    public CategoryResponseDTO getCategoryById(String id) throws BadRequestException {
+    public CategoryDTO getCategoryById(String id) throws BadRequestException {
         try {
             Category category = categoryRepository.findById(id)
                 .orElseThrow(() -> new BadRequestException("Không tìm thấy danh mục với ID: " + id));
-            return new CategoryResponseDTO(category);
+            return new CategoryDTO(category);
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            throw new BadRequestException("Lỗi khi lấy thông tin danh mục: " + e.getMessage());
+            log.error("Lỗi khi lấy thông tin danh mục: {}", e.getMessage());
+            throw new BadRequestException("Không thể lấy thông tin danh mục: " + e.getMessage());
         }
     }
 
     @Override
     @Transactional
-    public CategoryResponseDTO addCategory(AddCategoryRequest request) throws BadRequestException {
+    public CategoryDTO addCategory(AddCategoryRequest request) throws BadRequestException {
         try {
             if (categoryRepository.existsByName(request.getName())) {
-                throw new BadRequestException("Danh mục với tên '" + request.getName() + "' đã tồn tại");
+                throw new BadRequestException("Danh mục với tên này đã tồn tại");
             }
 
             Category category = new Category(request.getName(), request.getDescription());
             Category savedCategory = categoryRepository.save(category);
-            return new CategoryResponseDTO(savedCategory);
+            log.info("Đã thêm danh mục mới: {}", savedCategory.getName());
+            return new CategoryDTO(savedCategory);
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            throw new BadRequestException("Lỗi khi thêm danh mục: " + e.getMessage());
+            log.error("Lỗi khi thêm danh mục: {}", e.getMessage());
+            throw new BadRequestException("Không thể thêm danh mục: " + e.getMessage());
         }
     }
 
     @Override
     @Transactional
-    public CategoryResponseDTO updateCategory(UpdateCategoryRequest request) throws BadRequestException {
-        log.info("Bắt đầu cập nhật danh mục. CategoryId: {}", request.getId());
+    public CategoryDTO updateCategory(UpdateCategoryRequest request) throws BadRequestException {
         try {
-            // Validate request
-            if (request.getName() != null && request.getName().trim().isEmpty()) {
-                throw new BadRequestException("Tên danh mục không được để trống");
-            }
-
-            // Find category
             Category category = categoryRepository.findById(request.getId())
                 .orElseThrow(() -> new BadRequestException("Không tìm thấy danh mục với ID: " + request.getId()));
 
-            // Check name uniqueness if name is being updated
-            if (request.getName() != null && !request.getName().equals(category.getName())) {
-                String trimmedName = request.getName().trim();
-                if (categoryRepository.existsByName(trimmedName)) {
-                    throw new BadRequestException("Danh mục với tên '" + trimmedName + "' đã tồn tại");
-                }
-                category.setName(trimmedName);
-                log.info("Đã cập nhật tên danh mục từ '{}' thành '{}'", category.getName(), trimmedName);
+            // Kiểm tra nếu tên mới khác tên cũ và đã tồn tại
+            if (!category.getName().equals(request.getName()) && 
+                categoryRepository.existsByName(request.getName())) {
+                throw new BadRequestException("Danh mục với tên này đã tồn tại");
             }
 
-            // Update description if provided
-            if (request.getDescription() != null) {
-                String trimmedDescription = request.getDescription().trim();
-                category.setDescription(trimmedDescription);
-                log.info("Đã cập nhật mô tả danh mục");
-            }
-
+            category.setName(request.getName());
+            category.setDescription(request.getDescription());
+            
             Category updatedCategory = categoryRepository.save(category);
-            log.info("Cập nhật danh mục thành công. CategoryId: {}", updatedCategory.getId());
-            return new CategoryResponseDTO(updatedCategory);
+            log.info("Đã cập nhật danh mục: {}", updatedCategory.getName());
+            return new CategoryDTO(updatedCategory);
         } catch (BadRequestException e) {
-            log.warn("Lỗi khi cập nhật danh mục: {}", e.getMessage());
             throw e;
         } catch (Exception e) {
-            log.error("Lỗi không mong muốn khi cập nhật danh mục: {}", e.getMessage());
-            throw new BadRequestException("Lỗi khi cập nhật danh mục: " + e.getMessage());
+            log.error("Lỗi khi cập nhật danh mục: {}", e.getMessage());
+            throw new BadRequestException("Không thể cập nhật danh mục: " + e.getMessage());
         }
     }
 
@@ -115,26 +103,29 @@ public class CategoryServiceImpl implements CategoryService {
                 .orElseThrow(() -> new BadRequestException("Không tìm thấy danh mục với ID: " + id));
 
             if (!category.getBooks().isEmpty()) {
-                throw new BadRequestException("Không thể xóa danh mục này vì đang có sách thuộc danh mục");
+                throw new BadRequestException("Không thể xóa danh mục đang có sách");
             }
 
-            categoryRepository.deleteById(id);
+            categoryRepository.delete(category);
+            log.info("Đã xóa danh mục: {}", category.getName());
         } catch (BadRequestException e) {
             throw e;
         } catch (Exception e) {
-            throw new BadRequestException("Lỗi khi xóa danh mục: " + e.getMessage());
+            log.error("Lỗi khi xóa danh mục: {}", e.getMessage());
+            throw new BadRequestException("Không thể xóa danh mục: " + e.getMessage());
         }
     }
 
     @Override
-    public List<CategoryResponseDTO> searchCategories(String keyword) throws BadRequestException {
+    public List<CategoryDTO> searchCategories(String keyword) throws BadRequestException {
         try {
             List<Category> categories = categoryRepository.findByNameContainingIgnoreCase(keyword);
             return categories.stream()
-                .map(CategoryResponseDTO::new)
+                .map(CategoryDTO::new)
                 .collect(Collectors.toList());
         } catch (Exception e) {
-            throw new BadRequestException("Lỗi khi tìm kiếm danh mục: " + e.getMessage());
+            log.error("Lỗi khi tìm kiếm danh mục: {}", e.getMessage());
+            throw new BadRequestException("Không thể tìm kiếm danh mục: " + e.getMessage());
         }
     }
 
@@ -155,7 +146,8 @@ public class CategoryServiceImpl implements CategoryService {
             
             return result;
         } catch (Exception e) {
-            throw new BadRequestException("Lỗi khi đếm số lượng sách theo danh mục: " + e.getMessage());
+            log.error("Lỗi khi đếm số lượng sách theo danh mục: {}", e.getMessage());
+            throw new BadRequestException("Không thể đếm số lượng sách theo danh mục: " + e.getMessage());
         }
     }
 } 

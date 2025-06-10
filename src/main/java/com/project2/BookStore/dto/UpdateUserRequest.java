@@ -14,6 +14,10 @@ public class UpdateUserRequest {
     @Size(min = 2, max = 100, message = "Họ tên phải từ 2 đến 100 ký tự")
     private String fullName;
 
+    @NotBlank(message = "Email không được để trống")
+    @Pattern(regexp = "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$", message = "Email không hợp lệ")
+    private String email;
+    
     @NotBlank(message = "Số điện thoại không được để trống")
     @Pattern(regexp = "^\\d{10}$", message = "Số điện thoại phải có 10 chữ số")
     private String phone;

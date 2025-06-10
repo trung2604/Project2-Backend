@@ -28,6 +28,7 @@ public class UpdateBookRequest {
     private Integer quantity;
     
     private String categoryId;
+    private String categoryName;
     private String imageUrl;
     private MultipartFile imageFile;
 } 

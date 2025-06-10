@@ -1,5 +1,6 @@
 package com.project2.BookStore.dto;
 
+import com.project2.BookStore.model.Category;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.time.LocalDateTime;
@@ -22,4 +23,12 @@ public class CategoryDTO {
 
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+
+    public CategoryDTO(Category category) {
+        this.id = category.getId();
+        this.name = category.getName();
+        this.description = category.getDescription();
+        this.createdAt = category.getCreatedAt();
+        this.updatedAt = category.getUpdatedAt();
+    }
 } 

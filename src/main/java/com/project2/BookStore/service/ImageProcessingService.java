@@ -3,6 +3,7 @@ package com.project2.BookStore.service;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import com.project2.BookStore.dto.AvatarDTO;
+import com.project2.BookStore.dto.UserResponseDTO;
 import com.project2.BookStore.model.User;
 import com.project2.BookStore.exception.BadRequestException;
 import org.springframework.web.multipart.MultipartFile;
@@ -43,7 +44,7 @@ public class ImageProcessingService {
     private static final int THUMBNAIL_SIZE = 150;
     private static final int MEDIUM_SIZE = 300;
     
-    public AvatarDTO processAndUploadAvatar(MultipartFile file, User user) throws IOException {
+    public AvatarDTO processAndUploadAvatar(MultipartFile file, UserResponseDTO user) throws IOException {
         log.info("Processing avatar for user: {}", user.getId());
         
         // Validate file
@@ -265,7 +266,13 @@ public class ImageProcessingService {
             tempFile = File.createTempFile("book_", "." + getFormat(file.getOriginalFilename()));
             file.transferTo(tempFile);
             String outputFormat = getFormat(file.getOriginalFilename());
-            String basePublicId = "books/book_" + System.currentTimeMillis();
+            
+            // Tạo publicId duy nhất cho mỗi ảnh sách
+            String timestamp = String.valueOf(System.currentTimeMillis());
+            String random = java.util.UUID.randomUUID().toString().substring(0, 8);
+            String basePublicId = String.format("books/book_%s_%s", timestamp, random);
+            
+            log.info("Bắt đầu xử lý ảnh sách với publicId: {}", basePublicId);
             
             // Validate image can be read
             BufferedImage originalImage = ImageIO.read(tempFile);
@@ -280,7 +287,8 @@ public class ImageProcessingService {
                 throw new BadRequestException("Kích thước ảnh quá nhỏ. Yêu cầu tối thiểu 150x150 pixels.");
             }
             
-            log.info("Bắt đầu xử lý ảnh sách - Kích thước gốc: {}x{}, Format: {}", width, height, outputFormat);
+            log.info("Bắt đầu xử lý ảnh sách - Kích thước gốc: {}x{}, Format: {}, PublicId: {}", 
+                    width, height, outputFormat, basePublicId);
             
             // Process and upload thumbnail
             ByteArrayOutputStream thumbnailStream = new ByteArrayOutputStream();
@@ -289,6 +297,7 @@ public class ImageProcessingService {
                     .outputFormat(outputFormat)
                     .toOutputStream(thumbnailStream);
             String thumbnailUrl = uploadToCloudinary(thumbnailStream.toByteArray(), basePublicId + "_thumb", outputFormat);
+            log.info("Đã upload thumbnail: {}", thumbnailUrl);
             
             // Process and upload medium size
             ByteArrayOutputStream mediumStream = new ByteArrayOutputStream();
@@ -297,6 +306,7 @@ public class ImageProcessingService {
                     .outputFormat(outputFormat)
                     .toOutputStream(mediumStream);
             String mediumUrl = uploadToCloudinary(mediumStream.toByteArray(), basePublicId + "_medium", outputFormat);
+            log.info("Đã upload medium: {}", mediumUrl);
             
             // Process and upload original size (max 800x800)
             ByteArrayOutputStream originalStream = new ByteArrayOutputStream();
@@ -305,6 +315,7 @@ public class ImageProcessingService {
                     .outputFormat(outputFormat)
                     .toOutputStream(originalStream);
             String originalUrl = uploadToCloudinary(originalStream.toByteArray(), basePublicId + "_original", outputFormat);
+            log.info("Đã upload original: {}", originalUrl);
 
             // Create and validate image object
             Book.Image image = new Book.Image();
@@ -320,7 +331,8 @@ public class ImageProcessingService {
                 throw new BadRequestException("Không thể tạo đối tượng ảnh: thiếu URL");
             }
             
-            log.info("Xử lý ảnh sách thành công - public_id: {}", basePublicId);
+            log.info("Xử lý ảnh sách thành công - publicId: {}, Thumbnail: {}, Medium: {}, Original: {}", 
+                    basePublicId, thumbnailUrl, mediumUrl, originalUrl);
             return image;
         } catch (IOException e) {
             log.error("Lỗi khi xử lý ảnh sách: {}", e.getMessage());
@@ -329,7 +341,7 @@ public class ImageProcessingService {
             if (tempFile != null && tempFile.exists()) {
                 try {
                     Files.delete(tempFile.toPath());
-                    log.debug("Đã xóa file tạm: {}", tempFile.getAbsolutePath());
+                    log.info("Đã xóa file tạm: {}", tempFile.getAbsolutePath());
                 } catch (IOException e) {
                     log.error("Lỗi khi xóa file tạm: {}", e.getMessage());
                 }

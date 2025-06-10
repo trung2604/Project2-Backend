@@ -67,13 +67,11 @@ public class UserServiceImpl implements UserService {
         } catch (BadRequestException e) {
             log.warn("Lỗi khi đăng ký tài khoản: {}", e.getMessage());
             throw e;
-        } catch (Exception e) {
-            log.error("Lỗi không mong muốn khi đăng ký tài khoản: {}", e.getMessage());
-            throw new BadRequestException("Không thể đăng ký tài khoản: " + e.getMessage());
         }
     }
 
     @Override
+    @Transactional
     public LoginResponseDTO login(LoginRequest loginRequest) {
         log.info("Bắt đầu đăng nhập. Email: {}", loginRequest.getEmail());
 
@@ -88,20 +86,15 @@ public class UserServiceImpl implements UserService {
             }
 
             if (!passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
-                throw new BadRequestException("Mật khẩu không đúng");
+                throw new BadRequestException("Mật khẩu không chính xác");
             }
 
             String token = jwtUtil.generateToken(user.getEmail(), user.getRole().name(), user.getId());
-            UserResponseDTO userResponseDTO = new UserResponseDTO(user);
-            
-            log.info("Đăng nhập thành công. UserId: {}", user.getId());
-            return new LoginResponseDTO(token, userResponseDTO);
+            log.info("Đăng nhập thành công. Email: {}", loginRequest.getEmail());
+            return new LoginResponseDTO(token, new UserResponseDTO(user));
         } catch (BadRequestException e) {
             log.warn("Lỗi khi đăng nhập: {}", e.getMessage());
             throw e;
-        } catch (Exception e) {
-            log.error("Lỗi không mong muốn khi đăng nhập: {}", e.getMessage());
-            throw new BadRequestException("Không thể đăng nhập: " + e.getMessage());
         }
     }
 
@@ -127,25 +120,28 @@ public class UserServiceImpl implements UserService {
         try {
             User user = userRepository.findById(req.getId())
                 .orElseThrow(() -> new BadRequestException("Không tìm thấy người dùng với ID: " + req.getId()));
-            
-            if (user.getRole() == User.UserRole.ROLE_ADMIN) {
-                throw new BadRequestException("Không thể cập nhật thông tin tài khoản admin");
+
+            if (!user.isActive()) {
+                throw new BadRequestException("Tài khoản đã bị khóa");
             }
 
-            // Kiểm tra số điện thoại mới có bị trùng không
-            if (!user.getPhone().equals(req.getPhone())) {
-                User existingUser = userRepository.findByPhone(req.getPhone());
-                if (existingUser != null && !existingUser.getId().equals(user.getId())) {
-                    throw new BadRequestException("Số điện thoại " + req.getPhone() + " đã tồn tại trong hệ thống");
-                }
+            // Kiểm tra email mới có trùng với email của người dùng khác không
+            if (!user.getEmail().equals(req.getEmail()) && existsByEmail(req.getEmail())) {
+                throw new BadRequestException("Email " + req.getEmail() + " đã tồn tại trong hệ thống");
             }
-            
+
+            // Kiểm tra số điện thoại mới có trùng với số điện thoại của người dùng khác không
+            if (!user.getPhone().equals(req.getPhone()) && existsByPhone(req.getPhone())) {
+                throw new BadRequestException("Số điện thoại " + req.getPhone() + " đã tồn tại trong hệ thống");
+            }
+
             user.setFullName(req.getFullName());
+            user.setEmail(req.getEmail());
             user.setPhone(req.getPhone());
 
-            User saved = userRepository.save(user);
-            log.info("Cập nhật thông tin người dùng thành công. UserId: {}", saved.getId());
-            return new UserResponseDTO(saved);
+            User savedUser = userRepository.save(user);
+            log.info("Cập nhật thông tin người dùng thành công. UserId: {}", savedUser.getId());
+            return new UserResponseDTO(savedUser);
         } catch (BadRequestException e) {
             log.warn("Lỗi khi cập nhật thông tin người dùng: {}", e.getMessage());
             throw e;
@@ -210,12 +206,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public User getUserById(String userId) {
+    public UserResponseDTO getUserById(String userId) {
         return getUserById(userId, true);  // Default to checking active status
     }
 
     @Override
-    public User getUserById(String userId, boolean checkActive) {
+    public UserResponseDTO getUserById(String userId, boolean checkActive) {
         log.info("Bắt đầu lấy thông tin người dùng. UserId: {}, checkActive: {}", userId, checkActive);
 
         try {
@@ -227,7 +223,7 @@ public class UserServiceImpl implements UserService {
             }
 
             log.info("Lấy thông tin người dùng thành công. UserId: {}", userId);
-            return user;
+            return new UserResponseDTO(user);
         } catch (BadRequestException e) {
             log.warn("Lỗi khi lấy thông tin người dùng: {}", e.getMessage());
             throw e;
@@ -322,4 +318,4 @@ public class UserServiceImpl implements UserService {
             throw new BadRequestException("Không thể tạo tài khoản: " + e.getMessage());
         }
     }
-}
+} 

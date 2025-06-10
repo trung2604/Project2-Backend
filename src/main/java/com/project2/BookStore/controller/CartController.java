@@ -2,7 +2,6 @@ package com.project2.BookStore.controller;
 
 import com.project2.BookStore.model.CartItem;
 import com.project2.BookStore.dto.CartItemDTO;
-import com.project2.BookStore.dto.CartItemResponseDTO;
 import com.project2.BookStore.dto.ApiResponseDTO;
 import com.project2.BookStore.dto.CartItemDetailDTO;
 import com.project2.BookStore.service.CartService;
@@ -58,8 +57,8 @@ public class CartController {
         }
     }
 
-    private CartItemResponseDTO convertToResponseDTO(CartItem cartItem) {
-        CartItemResponseDTO dto = new CartItemResponseDTO();
+    private CartItemDetailDTO convertToResponseDTO(CartItem cartItem) {
+        CartItemDetailDTO dto = new CartItemDetailDTO();
         dto.setBookId(cartItem.getBookId());
         dto.setBookTitle(cartItem.getBookTitle());
         dto.setBookImage(cartItem.getBookImage());
@@ -76,7 +75,7 @@ public class CartController {
         try {
             String userId = getUserIdFromToken(request);
             CartItem cartItem = cartService.addToCart(userId, cartItemDTO);
-            CartItemResponseDTO responseDTO = convertToResponseDTO(cartItem);
+            CartItemDetailDTO responseDTO = convertToResponseDTO(cartItem);
             return ResponseEntity.ok(new ApiResponseDTO(true, "Thêm sách vào giỏ hàng thành công", responseDTO));
         } catch (BadRequestException e) {
             return ResponseEntity.badRequest()
@@ -91,7 +90,7 @@ public class CartController {
         try {
             String userId = getUserIdFromToken(request);
             CartItem cartItem = cartService.updateCartItem(userId, cartItemDTO);
-            CartItemResponseDTO responseDTO = convertToResponseDTO(cartItem);
+            CartItemDetailDTO responseDTO = convertToResponseDTO(cartItem);
             return ResponseEntity.ok(new ApiResponseDTO(true, "Cập nhật giỏ hàng thành công", responseDTO));
         } catch (BadRequestException e) {
             return ResponseEntity.badRequest()
@@ -106,7 +105,7 @@ public class CartController {
         try {
             String userId = getUserIdFromToken(request);
             CartItem cartItem = cartService.removeFromCart(userId, bookId);
-            CartItemResponseDTO responseDTO = convertToResponseDTO(cartItem);
+            CartItemDetailDTO responseDTO = convertToResponseDTO(cartItem);
             return ResponseEntity.ok(new ApiResponseDTO(true, "Xóa sách khỏi giỏ hàng thành công", responseDTO));
         } catch (BadRequestException e) {
             return ResponseEntity.badRequest()

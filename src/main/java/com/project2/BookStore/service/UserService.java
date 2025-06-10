@@ -20,8 +20,8 @@ public interface UserService {
     UserResponseDTO updateUser(UpdateUserRequest updateUserRequest);
     void deleteUser(String id);
     void updateUserAvatar(String userId, AvatarDTO avatarDTO);
-    User getUserById(String userId);
-    User getUserById(String userId, boolean checkActive);
+    UserResponseDTO getUserById(String userId);
+    UserResponseDTO getUserById(String userId, boolean checkActive);
     Page<UserResponseDTO> getUsersPaged(Pageable pageable);
     UserResponseDTO getUserByEmail(String email);
     boolean existsByEmail(String email);
