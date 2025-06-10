@@ -1,84 +1,352 @@
-# BookStore Backend
+# BookStore API
 
-## Overview
-Đây là source code backend cho hệ thống BookStore, xây dựng bằng Spring Boot và MongoDB. Backend cung cấp RESTful API cho các chức năng quản lý người dùng, sách, đơn hàng, phân quyền, upload ảnh (Cloudinary), v.v.
+API hệ thống quản lý sách trực tuyến, cung cấp các chức năng quản lý sách, danh mục, đơn hàng và người dùng.
 
-## Tech Stack
+## Công nghệ sử dụng
 
-- **Framework:** Spring Boot
-- **Language:** Java
-- **Database:** MongoDB
-- **Build Tool:** Maven
-- **API Documentation:** Swagger/OpenAPI
+- Java 17
+- Spring Boot 3.4.5
+- Spring Data JPA
+- PostgreSQL
+- Spring Security + JWT
+- Cloudinary (lưu trữ hình ảnh)
+- Maven
+- Lombok
+- Swagger/OpenAPI
 
-## Tính năng chính
-
-- Đăng ký, đăng nhập, xác thực JWT
-- Phân quyền người dùng (Admin, User)
-- Quản lý sách, danh mục, kho
-- Quản lý người dùng, đơn hàng
-- Upload và quản lý avatar (Cloudinary)
-- Phân trang, tìm kiếm, lọc dữ liệu
-
-## Cài đặt & Chạy dự án
+## Cài đặt và chạy
 
 ### Yêu cầu hệ thống
-- Java JDK 17 trở lên
-- MongoDB 5.0 trở lên
-- Maven 3.8.x trở lên
+- JDK 17 trở lên
+- Maven 3.6 trở lên
+- PostgreSQL 12 trở lên
+- IDE (khuyến nghị IntelliJ IDEA)
 
-### Hướng dẫn cài đặt
-
-1. **Clone repository:**
-    ```bash
-    git clone https://github.com/trung2604/Project2.git
-    cd BookStore
-    ```
-
-2. **Cấu hình MongoDB & Cloudinary:**
-    - Tạo database MongoDB (ví dụ: `bookstore`)
-    - Tạo file `src/main/resources/application.properties` (không commit file này lên git)
-    - Tham khảo file `application.properties.example` để biết các key cần cấu hình:
-      ```properties
-      spring.data.mongodb.uri=
-      cloudinary.cloud-name=
-      cloudinary.api-key=
-      cloudinary.api-secret=
-      jwt.secret=
-      ```
-
-3. **Chạy ứng dụng:**
-    ```bash
-    ./mvnw spring-boot:run
-    # hoặc
-    mvn spring-boot:run
-    ```
-
-4. **Truy cập API docs:**
-    - Swagger UI: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
-
-## Cấu trúc Project
-
-```
-BookStore/
-├── src/
-│   ├── main/
-│   │   ├── java/com/project2/BookStore/
-│   │   └── resources/
-│   └── test/
-├── pom.xml
-└── README.md
+### Cấu hình database
+1. Tạo database PostgreSQL:
+```sql
+CREATE DATABASE bookstore;
 ```
 
-## Một số API mẫu
+2. Cấu hình kết nối trong `application.properties`:
+```properties
+spring.datasource.url=jdbc:postgresql://localhost:5432/bookstore
+spring.datasource.username=your_username
+spring.datasource.password=your_password
+```
 
-- **Đăng ký:** `POST /api/bookStore/user/register`
-- **Đăng nhập:** `POST /api/bookStore/user/login`
-- **Phân trang user:** `GET /api/bookStore/user/paged?current=1&pageSize=10`
-- **Upload avatar:** `POST /api/bookStore/user/avatar/upload`
+### Cấu hình Cloudinary
+1. Đăng ký tài khoản tại [Cloudinary](https://cloudinary.com)
+2. Cập nhật thông tin trong `application.properties`:
+```properties
+cloudinary.cloud-name=your_cloud_name
+cloudinary.api-key=your_api_key
+cloudinary.api-secret=your_api_secret
+```
 
+### Chạy ứng dụng
+1. Clone repository:
+```bash
+git clone https://github.com/your-username/bookstore.git
+cd bookstore
+```
 
-## Đóng góp
+2. Build project:
+```bash
+mvn clean install
+```
+
+3. Chạy ứng dụng:
+```bash
+mvn spring-boot:run
+```
+
+Ứng dụng sẽ chạy tại `http://localhost:8080`
+
+## API Documentation
+
+### Authentication
+
+#### Đăng ký
+```http
+POST /api/auth/register
+Content-Type: application/json
+
+{
+    "email": "user@example.com",
+    "password": "password123",
+    "fullName": "Nguyễn Văn A",
+    "phone": "0123456789"
+}
+```
+
+#### Đăng nhập
+```http
+POST /api/auth/login
+Content-Type: application/json
+
+{
+    "email": "user@example.com",
+    "password": "password123"
+}
+```
+
+### Quản lý sách
+
+#### Lấy danh sách sách mới nhất
+```http
+GET /api/books/latest?limit=5
+```
+Response:
+```json
+{
+  "success": true,
+  "message": "Lấy danh sách sách mới nhất thành công",
+  "data": [
+    {
+      "id": "book-123",
+      "mainText": "Đắc Nhân Tâm",
+      "author": "Dale Carnegie",
+      "price": 89000,
+      "quantity": 50,
+      "sold": 100,
+      "categoryId": "cat-1",
+      "categoryName": "Kỹ năng sống",
+      "image": {
+        "thumbnail": "https://res.cloudinary.com/.../thumbnail.jpg",
+        "medium": "https://res.cloudinary.com/.../medium.jpg",
+        "original": "https://res.cloudinary.com/.../original.jpg"
+      },
+      "createdAt": "2024-06-10T08:00:00",
+      "updatedAt": "2024-06-10T08:00:00"
+    }
+  ]
+}
+```
+
+#### Lấy danh sách sách bán chạy
+```http
+GET /api/books/top-selling?limit=5
+```
+Response:
+```json
+{
+  "success": true,
+  "message": "Lấy danh sách sách bán chạy thành công",
+  "data": [
+    {
+      "id": "book-456",
+      "mainText": "Nhà Giả Kim",
+      "author": "Paulo Coelho",
+      "price": 79000,
+      "quantity": 30,
+      "sold": 500,
+      "categoryId": "cat-2",
+      "categoryName": "Tiểu thuyết",
+      "image": {
+        "thumbnail": "https://res.cloudinary.com/.../thumbnail.jpg",
+        "medium": "https://res.cloudinary.com/.../medium.jpg",
+        "original": "https://res.cloudinary.com/.../original.jpg"
+      },
+      "createdAt": "2024-05-01T08:00:00",
+      "updatedAt": "2024-06-01T08:00:00"
+    }
+  ]
+}
+```
+
+#### Tìm kiếm sách
+```http
+GET /api/books/search?keyword=nhà&categoryId=cat-1&minPrice=50000&maxPrice=100000&inStock=true&page=0&size=10&sortBy=price&sortDirection=asc
+```
+
+#### Thêm sách mới (Admin)
+```http
+POST /api/books
+Content-Type: multipart/form-data
+Authorization: Bearer {token}
+
+{
+    "mainText": "Tên sách",
+    "author": "Tác giả",
+    "price": 89000,
+    "quantity": 100,
+    "categoryName": "Tên danh mục",
+    "image": [file]
+}
+```
+
+#### Cập nhật sách (Admin)
+```http
+PUT /api/books/{id}
+Content-Type: application/json
+Authorization: Bearer {token}
+
+{
+    "mainText": "Tên sách mới",
+    "author": "Tác giả mới",
+    "price": 99000,
+    "quantity": 50,
+    "categoryName": "Danh mục mới"
+}
+```
+
+#### Xóa sách (Admin)
+```http
+DELETE /api/books/{id}
+Authorization: Bearer {token}
+```
+
+### Quản lý danh mục
+
+#### Lấy danh sách danh mục
+```http
+GET /api/categories?page=0&size=10
+```
+
+#### Thêm danh mục mới (Admin)
+```http
+POST /api/categories
+Content-Type: application/json
+Authorization: Bearer {token}
+
+{
+    "name": "Tên danh mục mới"
+}
+```
+
+#### Cập nhật danh mục (Admin)
+```http
+PUT /api/categories/{id}
+Content-Type: application/json
+Authorization: Bearer {token}
+
+{
+    "name": "Tên danh mục mới"
+}
+```
+
+#### Xóa danh mục (Admin)
+```http
+DELETE /api/categories/{id}
+Authorization: Bearer {token}
+```
+
+### Quản lý giỏ hàng
+
+#### Thêm sách vào giỏ hàng
+```http
+POST /api/cart
+Content-Type: application/json
+Authorization: Bearer {token}
+
+{
+    "bookId": "book-123",
+    "quantity": 2
+}
+```
+
+#### Cập nhật số lượng
+```http
+PUT /api/cart/{bookId}
+Content-Type: application/json
+Authorization: Bearer {token}
+
+{
+    "quantity": 3
+}
+```
+
+#### Xóa sách khỏi giỏ hàng
+```http
+DELETE /api/cart/{bookId}
+Authorization: Bearer {token}
+```
+
+#### Lấy giỏ hàng
+```http
+GET /api/cart
+Authorization: Bearer {token}
+```
+
+### Quản lý đơn hàng
+
+#### Tạo đơn hàng mới
+```http
+POST /api/orders
+Content-Type: application/json
+Authorization: Bearer {token}
+
+{
+    "fullName": "Nguyễn Văn A",
+    "email": "user@example.com",
+    "phone": "0123456789",
+    "address": "123 Đường ABC, Quận XYZ, TP.HCM"
+}
+```
+
+#### Lấy danh sách đơn hàng
+```http
+GET /api/orders?page=0&size=10
+Authorization: Bearer {token}
+```
+
+#### Cập nhật trạng thái đơn hàng (Admin)
+```http
+PUT /api/orders/{id}/status
+Content-Type: application/json
+Authorization: Bearer {token}
+
+{
+    "status": "SHIPPING"
+}
+```
+
+## Cấu trúc thư mục
+
+```
+src/main/java/com/project2/BookStore/
+├── config/          # Cấu hình ứng dụng
+├── controller/      # REST controllers
+├── dto/            # Data Transfer Objects
+├── entity/         # JPA entities
+├── exception/      # Custom exceptions
+├── repository/     # JPA repositories
+├── service/        # Business logic
+│   └── impl/      # Service implementations
+├── util/           # Utility classes
+└── BookStoreApplication.java
+```
+
+## Bảo mật
+
+- Sử dụng JWT cho xác thực
+- Mã hóa mật khẩu với BCrypt
+- Phân quyền Admin/User
+- Validate input
+- Xử lý CORS
+- Rate limiting
+
+## Xử lý lỗi
+
+API trả về các mã lỗi HTTP chuẩn:
+- 200: Thành công
+- 400: Bad Request (dữ liệu không hợp lệ)
+- 401: Unauthorized (chưa đăng nhập)
+- 403: Forbidden (không có quyền)
+- 404: Not Found
+- 500: Internal Server Error
+
+Format response lỗi:
+```json
+{
+    "success": false,
+    "message": "Mô tả lỗi"
+}
+```
+
+## Contributing
+
 1. Fork repository
 2. Tạo branch mới (`git checkout -b feature/AmazingFeature`)
 3. Commit thay đổi (`git commit -m 'Add some AmazingFeature'`)
@@ -86,7 +354,10 @@ BookStore/
 5. Tạo Pull Request
 
 ## License
-MIT License - xem file [LICENSE](LICENSE) để biết thêm chi tiết.
 
-## Contact
-Trung Do - [@trung2604](https://github.com/trung2604) 
+[MIT License](LICENSE)
+
+## Liên hệ
+
+- Email: your.email@example.com
+- GitHub: [your-username](https://github.com/your-username) 
