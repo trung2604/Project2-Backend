@@ -69,7 +69,7 @@ mvn spring-boot:run
 
 #### Đăng ký
 ```http
-POST /api/auth/register
+POST /api/bookStore/user/register
 Content-Type: application/json
 
 {
@@ -82,7 +82,7 @@ Content-Type: application/json
 
 #### Đăng nhập
 ```http
-POST /api/auth/login
+POST /api/bookSotre/user/login
 Content-Type: application/json
 
 {
@@ -95,7 +95,7 @@ Content-Type: application/json
 
 #### Lấy danh sách sách mới nhất
 ```http
-GET /api/books/latest?limit=5
+GET /api//bookStore/books/latest?limit=5
 ```
 Response:
 ```json
@@ -126,7 +126,7 @@ Response:
 
 #### Lấy danh sách sách bán chạy
 ```http
-GET /api/books/top-selling?limit=5
+GET /api/bookStore/books/top-selling?limit=5
 ```
 Response:
 ```json
@@ -157,12 +157,12 @@ Response:
 
 #### Tìm kiếm sách
 ```http
-GET /api/books/search?keyword=nhà&categoryId=cat-1&minPrice=50000&maxPrice=100000&inStock=true&page=0&size=10&sortBy=price&sortDirection=asc
+GET /api/bookStore/books/search?keyword=nhà&categoryId=cat-1&minPrice=50000&maxPrice=100000&inStock=true&page=0&size=10&sortBy=price&sortDirection=asc
 ```
 
 #### Thêm sách mới (Admin)
 ```http
-POST /api/books
+POST /api/bookStore/books
 Content-Type: multipart/form-data
 Authorization: Bearer {token}
 
@@ -178,7 +178,7 @@ Authorization: Bearer {token}
 
 #### Cập nhật sách (Admin)
 ```http
-PUT /api/books/{id}
+PUT /api/bookStore/books/{id}
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -193,7 +193,7 @@ Authorization: Bearer {token}
 
 #### Xóa sách (Admin)
 ```http
-DELETE /api/books/{id}
+DELETE /api/bookStore/books/{id}
 Authorization: Bearer {token}
 ```
 
@@ -201,12 +201,12 @@ Authorization: Bearer {token}
 
 #### Lấy danh sách danh mục
 ```http
-GET /api/categories?page=0&size=10
+GET /api/bookStore/categories?page=0&size=10
 ```
 
 #### Thêm danh mục mới (Admin)
 ```http
-POST /api/categories
+POST /api/bookStore/categories
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -217,7 +217,7 @@ Authorization: Bearer {token}
 
 #### Cập nhật danh mục (Admin)
 ```http
-PUT /api/categories/{id}
+PUT /api/bookStore/categories/{id}
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -228,7 +228,7 @@ Authorization: Bearer {token}
 
 #### Xóa danh mục (Admin)
 ```http
-DELETE /api/categories/{id}
+DELETE /api/bookStore/categories/{id}
 Authorization: Bearer {token}
 ```
 
@@ -236,7 +236,7 @@ Authorization: Bearer {token}
 
 #### Thêm sách vào giỏ hàng
 ```http
-POST /api/cart
+POST /api/bookStore/cart
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -248,7 +248,7 @@ Authorization: Bearer {token}
 
 #### Cập nhật số lượng
 ```http
-PUT /api/cart/{bookId}
+PUT /api/bookStore/cart/{bookId}
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -259,13 +259,13 @@ Authorization: Bearer {token}
 
 #### Xóa sách khỏi giỏ hàng
 ```http
-DELETE /api/cart/{bookId}
+DELETE /api/bookStore/cart/{bookId}
 Authorization: Bearer {token}
 ```
 
 #### Lấy giỏ hàng
 ```http
-GET /api/cart
+GET /api/bookStore/cart
 Authorization: Bearer {token}
 ```
 
@@ -273,7 +273,7 @@ Authorization: Bearer {token}
 
 #### Tạo đơn hàng mới
 ```http
-POST /api/orders
+POST /api/bookStore/orders
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -287,13 +287,13 @@ Authorization: Bearer {token}
 
 #### Lấy danh sách đơn hàng
 ```http
-GET /api/orders?page=0&size=10
+GET /api/bookStore/orders?page=0&size=10
 Authorization: Bearer {token}
 ```
 
 #### Cập nhật trạng thái đơn hàng (Admin)
 ```http
-PUT /api/orders/{id}/status
+PUT /api/bookStore/orders/{id}/status
 Content-Type: application/json
 Authorization: Bearer {token}
 
@@ -359,5 +359,5 @@ Format response lỗi:
 
 ## Liên hệ
 
-- Email: your.email@example.com
-- GitHub: [your-username](https://github.com/your-username) 
+- Email: dodinhtrungthptyv@gmail.com
+- GitHub: [trung2604](https://github.com/trung2604) 
