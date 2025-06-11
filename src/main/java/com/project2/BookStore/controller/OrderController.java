@@ -4,6 +4,7 @@ import com.project2.BookStore.dto.ApiResponseDTO;
 import com.project2.BookStore.dto.OrderRequestDTO;
 import com.project2.BookStore.dto.OrderResponseDTO;
 import com.project2.BookStore.model.Order;
+import com.project2.BookStore.repository.UserRepository;
 import com.project2.BookStore.service.OrderService;
 import com.project2.BookStore.dto.UserResponseDTO;
 import com.project2.BookStore.exception.BadRequestException;
@@ -22,6 +23,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -36,24 +39,40 @@ public class OrderController {
     @Autowired
     private JwtUtil jwtUtil;
 
+    @Autowired
+    private UserRepository userRepository;
+
     private String getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
             log.warn("User not authenticated");
-            throw new BadRequestException("User not authenticated");
+            throw new BadRequestException("Vui lòng đăng nhập để thực hiện thao tác này");
         }
-        // Get token from authentication credentials
-        String token = authentication.getCredentials().toString();
-        if (token == null) {
-            log.error("Could not get token from authentication");
-            throw new BadRequestException("Invalid user details");
+
+        // Get token from request header
+        HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+        String token = request.getHeader("Authorization");
+        if (token == null || !token.startsWith("Bearer ")) {
+            log.error("No valid token found in request header");
+            throw new BadRequestException("Token không hợp lệ");
         }
+
+        // Remove "Bearer " prefix
+        token = token.substring(7);
+
         // Get userId from token
         String userId = jwtUtil.getUserIdFromToken(token);
         if (userId == null) {
             log.error("Could not get userId from token");
-            throw new BadRequestException("Invalid user details");
+            throw new BadRequestException("Token không hợp lệ hoặc đã hết hạn");
         }
+
+        // Validate user exists
+        if (!userRepository.existsById(userId)) {
+            log.error("User not found for userId: {}", userId);
+            throw new BadRequestException("Không tìm thấy người dùng");
+        }
+
         return userId;
     }
 

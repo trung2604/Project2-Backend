@@ -31,10 +31,10 @@ public class OrderItem {
     private Integer quantity;
 
     @Column(nullable = false)
-    private Double price;
+    private Long price;
 
     @Column(nullable = false)
-    private Double subtotal;
+    private Long subtotal;
 
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)

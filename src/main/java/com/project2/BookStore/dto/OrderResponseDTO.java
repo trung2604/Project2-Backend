@@ -35,7 +35,7 @@ public class OrderResponseDTO {
         private String bookTitle;
         private String bookImage;
         private Integer quantity;
-        private Double price;
-        private Double subtotal;
+        private Long price;
+        private Long subtotal;
     }
 } 
