@@ -3,6 +3,7 @@ package com.project2.BookStore.repository;
 import com.project2.BookStore.model.Book;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
@@ -27,4 +28,9 @@ public interface BookRepository extends JpaRepository<Book, String>, JpaSpecific
 
     // Lấy sách sắp hết hàng
     List<Book> findByQuantityLessThanEqualOrderByQuantityAsc(int threshold, Pageable pageable);
+
+    // Custom query để lấy sách có phân trang và sắp xếp
+    @Query(value = "SELECT b FROM Book b",
+           countQuery = "SELECT COUNT(b) FROM Book b")
+    Page<Book> findAllWithPagination(Pageable pageable);
 } 

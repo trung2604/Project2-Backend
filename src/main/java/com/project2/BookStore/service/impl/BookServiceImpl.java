@@ -66,39 +66,58 @@ public class BookServiceImpl implements BookService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<BookResponseDTO> getBooksPaged(Pageable pageable) throws BadRequestException {
         try {
-            log.info("Bắt đầu lấy danh sách sách phân trang");
-            Page<Book> bookPage = bookRepository.findAll(pageable);
+            log.info("Bắt đầu lấy danh sách sách phân trang - Page: {}, Size: {}, Sort: {}", 
+                pageable.getPageNumber(), 
+                pageable.getPageSize(),
+                pageable.getSort());
+
+            // Đảm bảo pageable có sort mặc định nếu không được chỉ định
+            if (!pageable.getSort().isSorted()) {
+                pageable = PageRequest.of(
+                    pageable.getPageNumber(),
+                    pageable.getPageSize(),
+                    Sort.by(Sort.Direction.DESC, "createdAt")
+                );
+                log.info("Đã thêm sort mặc định: createdAt DESC");
+            }
+
+            // Sử dụng custom query để lấy dữ liệu
+            Page<Book> bookPage = bookRepository.findAllWithPagination(pageable);
             
-            // Log thông tin về số lượng sách và trạng thái ảnh
-            log.info("Tìm thấy {} sách", bookPage.getTotalElements());
-            bookPage.getContent().forEach(book -> {
-                if (book.getImage() != null) {
-                    log.info("Sách ID: {} có ảnh - Thumbnail: {}, Medium: {}, Original: {}", 
-                        book.getId(), 
-                        book.getImage().getThumbnail(),
-                        book.getImage().getMedium(),
-                        book.getImage().getOriginal());
-                } else {
-                    log.info("Sách ID: {} không có ảnh", book.getId());
-                }
-            });
-            
+            log.info("Kết quả từ repository - Tổng số sách: {}, Trang hiện tại: {}, Tổng số trang: {}, Số sách trong trang: {}", 
+                bookPage.getTotalElements(),
+                bookPage.getNumber(),
+                bookPage.getTotalPages(),
+                bookPage.getContent().size());
+
+            // Log danh sách ID của sách trong trang hiện tại
+            List<String> bookIds = bookPage.getContent().stream()
+                .map(Book::getId)
+                .collect(Collectors.toList());
+            log.info("Danh sách ID sách trong trang {}: {}", bookPage.getNumber(), bookIds);
+
             // Chuyển đổi sang DTO
             List<BookResponseDTO> bookDTOs = bookPage.getContent().stream()
-                .map(book -> {
-                    BookResponseDTO dto = new BookResponseDTO(book);
-                    if (dto.getImage() != null) {
-                        log.info("Đã chuyển đổi ảnh cho sách ID: {} - Thumbnail: {}", 
-                            dto.getId(), dto.getImage().getThumbnail());
-                    }
-                    return dto;
-                })
+                .map(BookResponseDTO::new)
                 .collect(Collectors.toList());
             
-            log.info("Đã chuyển đổi {} sách sang DTO", bookDTOs.size());
-            return new PageImpl<>(bookDTOs, pageable, bookPage.getTotalElements());
+            // Tạo Page mới với DTOs và pageable gốc
+            Page<BookResponseDTO> result = new PageImpl<>(
+                bookDTOs,
+                pageable,
+                bookPage.getTotalElements()
+            );
+
+            log.info("Kết quả cuối cùng - Trang: {}, Size: {}, Total: {}, Content size: {}", 
+                result.getNumber(),
+                result.getSize(),
+                result.getTotalElements(),
+                result.getContent().size());
+
+            return result;
         } catch (Exception e) {
             log.error("Lỗi khi lấy danh sách sách phân trang: {}", e.getMessage(), e);
             throw new BadRequestException("Lỗi khi lấy danh sách sách: " + e.getMessage());

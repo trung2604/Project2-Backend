@@ -61,12 +61,28 @@ public class BookController {
     @GetMapping("/paged")
     public ResponseEntity<ApiResponseDTO> getBooksPaged(
             @RequestParam(defaultValue = "0") @Min(0) int page,
-            @RequestParam(defaultValue = "10") @Min(1) int size) {
+            @RequestParam(defaultValue = "10") @Min(1) int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDirection) {
         try {
-            log.info("Lấy danh sách sách phân trang - Trang: {}, Kích thước: {}", page, size);
-            Pageable pageable = PageRequest.of(page, size);
+            log.info("Lấy danh sách sách phân trang - Trang: {}, Kích thước: {}, Sắp xếp: {}, Hướng: {}", 
+                page, size, sortBy, sortDirection);
+
+            // Tạo Pageable với sort và đảm bảo page >= 0
+            Pageable pageable = PageRequest.of(
+                Math.max(0, page), 
+                size, 
+                Sort.by(Sort.Direction.fromString(sortDirection), sortBy)
+            );
+
             Page<BookResponseDTO> books = bookService.getBooksPaged(pageable);
-            return ResponseEntity.ok(new ApiResponseDTO(true, "Lấy danh sách sách phân trang thành công", books));
+            
+            // Sử dụng PageResponse để format dữ liệu
+            return ResponseEntity.ok(new ApiResponseDTO(
+                true, 
+                "Lấy danh sách sách phân trang thành công", 
+                new PageResponse<>(books)
+            ));
         } catch (BadRequestException e) {
             log.error("Lỗi khi lấy danh sách sách phân trang: {}", e.getMessage());
             return ResponseEntity.badRequest().body(new ApiResponseDTO(false, e.getMessage()));

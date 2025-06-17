@@ -277,10 +277,18 @@ public class OrderController {
 
     @PostMapping("/{orderId}/confirm")
     public ResponseEntity<ApiResponseDTO> confirmOrder(
-            @PathVariable String orderId) {
+            @PathVariable String orderId,
+            HttpServletRequest request) {
         try {
+            // Lấy token từ header
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponseDTO(false, "Token không hợp lệ", null));
+            }
+            String token = authHeader.substring(7);
+
             // Kiểm tra quyền admin
-            String token = SecurityContextHolder.getContext().getAuthentication().getCredentials().toString();
             if (!jwtUtil.hasRole(token, "ROLE_ADMIN")) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body(new ApiResponseDTO(false, "Không có quyền xác nhận đơn hàng", null));
@@ -296,9 +304,11 @@ public class OrderController {
             OrderResponseDTO confirmedOrder = orderService.updateOrderStatus(orderId, Order.OrderStatus.CONFIRMED);
             return ResponseEntity.ok(new ApiResponseDTO(true, "Xác nhận đơn hàng thành công", confirmedOrder));
         } catch (BadRequestException e) {
+            log.error("Lỗi khi xác nhận đơn hàng: {}", e.getMessage());
             return ResponseEntity.badRequest()
                 .body(new ApiResponseDTO(false, e.getMessage(), null));
         } catch (Exception e) {
+            log.error("Lỗi server khi xác nhận đơn hàng: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponseDTO(false, "Lỗi server: " + e.getMessage(), null));
         }
@@ -306,28 +316,48 @@ public class OrderController {
 
     @PostMapping("/{orderId}/shipping")
     public ResponseEntity<ApiResponseDTO> updateOrderToShipping(
-            @PathVariable String orderId) {
+            @PathVariable String orderId,
+            HttpServletRequest request) {
+        log.info("Bắt đầu cập nhật trạng thái giao hàng cho đơn hàng: {}", orderId);
         try {
-            // Kiểm tra quyền shipper
-            String token = SecurityContextHolder.getContext().getAuthentication().getCredentials().toString();
-            if (!jwtUtil.hasRole(token, "ROLE_SHIPPER")) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new ApiResponseDTO(false, "Không có quyền cập nhật trạng thái giao hàng", null));
+            // Lấy token từ header
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                log.warn("Token không hợp lệ cho đơn hàng: {}", orderId);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponseDTO(false, "Token không hợp lệ", null));
             }
+            String token = authHeader.substring(7);
 
             // Kiểm tra đơn hàng
             OrderResponseDTO order = orderService.getOrderById(orderId);
+            log.info("Trạng thái hiện tại của đơn hàng {}: {}", orderId, order.getStatus());
+            
             if (order.getStatus() != Order.OrderStatus.CONFIRMED) {
+                String message = String.format(
+                    "Chỉ có thể cập nhật trạng thái giao hàng cho đơn hàng đã xác nhận. Trạng thái hiện tại: %s", 
+                    order.getStatus()
+                );
+                log.warn(message);
                 return ResponseEntity.badRequest()
-                    .body(new ApiResponseDTO(false, "Chỉ có thể cập nhật trạng thái giao hàng cho đơn hàng đã xác nhận", null));
+                    .body(new ApiResponseDTO(false, message, null));
             }
 
+            // Cập nhật trạng thái
             OrderResponseDTO updatedOrder = orderService.updateOrderStatus(orderId, Order.OrderStatus.SHIPPING);
-            return ResponseEntity.ok(new ApiResponseDTO(true, "Cập nhật trạng thái giao hàng thành công", updatedOrder));
+            log.info("Đã cập nhật trạng thái giao hàng thành công cho đơn hàng: {}", orderId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("order", updatedOrder);
+            response.put("status", "SHIPPING");
+            response.put("message", "Đã cập nhật trạng thái đơn hàng sang đang giao hàng");
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Cập nhật trạng thái giao hàng thành công", response));
         } catch (BadRequestException e) {
+            log.error("Lỗi khi cập nhật trạng thái giao hàng cho đơn hàng {}: {}", orderId, e.getMessage());
             return ResponseEntity.badRequest()
                 .body(new ApiResponseDTO(false, e.getMessage(), null));
         } catch (Exception e) {
+            log.error("Lỗi server khi cập nhật trạng thái giao hàng cho đơn hàng {}: {}", orderId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponseDTO(false, "Lỗi server: " + e.getMessage(), null));
         }
@@ -335,28 +365,48 @@ public class OrderController {
 
     @PostMapping("/{orderId}/delivered")
     public ResponseEntity<ApiResponseDTO> updateOrderToDelivered(
-            @PathVariable String orderId) {
+            @PathVariable String orderId,
+            HttpServletRequest request) {
+        log.info("Bắt đầu cập nhật trạng thái đã giao hàng cho đơn hàng: {}", orderId);
         try {
-            // Kiểm tra quyền shipper
-            String token = SecurityContextHolder.getContext().getAuthentication().getCredentials().toString();
-            if (!jwtUtil.hasRole(token, "ROLE_SHIPPER")) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                    .body(new ApiResponseDTO(false, "Không có quyền cập nhật trạng thái đã giao hàng", null));
+            // Lấy token từ header
+            String authHeader = request.getHeader("Authorization");
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                log.warn("Token không hợp lệ cho đơn hàng: {}", orderId);
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ApiResponseDTO(false, "Token không hợp lệ", null));
             }
+            String token = authHeader.substring(7);
 
             // Kiểm tra đơn hàng
             OrderResponseDTO order = orderService.getOrderById(orderId);
+            log.info("Trạng thái hiện tại của đơn hàng {}: {}", orderId, order.getStatus());
+            
             if (order.getStatus() != Order.OrderStatus.SHIPPING) {
+                String message = String.format(
+                    "Chỉ có thể cập nhật trạng thái đã giao hàng cho đơn hàng đang giao. Trạng thái hiện tại: %s", 
+                    order.getStatus()
+                );
+                log.warn(message);
                 return ResponseEntity.badRequest()
-                    .body(new ApiResponseDTO(false, "Chỉ có thể cập nhật trạng thái đã giao hàng cho đơn hàng đang giao", null));
+                    .body(new ApiResponseDTO(false, message, null));
             }
 
+            // Cập nhật trạng thái
             OrderResponseDTO updatedOrder = orderService.updateOrderStatus(orderId, Order.OrderStatus.DELIVERED);
-            return ResponseEntity.ok(new ApiResponseDTO(true, "Cập nhật trạng thái đã giao hàng thành công", updatedOrder));
+            log.info("Đã cập nhật trạng thái đã giao hàng thành công cho đơn hàng: {}", orderId);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("order", updatedOrder);
+            response.put("status", "DELIVERED");
+            response.put("message", "Đã cập nhật trạng thái đơn hàng sang đã giao hàng thành công");
+            return ResponseEntity.ok(new ApiResponseDTO(true, "Cập nhật trạng thái đã giao hàng thành công", response));
         } catch (BadRequestException e) {
+            log.error("Lỗi khi cập nhật trạng thái đã giao hàng cho đơn hàng {}: {}", orderId, e.getMessage());
             return ResponseEntity.badRequest()
                 .body(new ApiResponseDTO(false, e.getMessage(), null));
         } catch (Exception e) {
+            log.error("Lỗi server khi cập nhật trạng thái đã giao hàng cho đơn hàng {}: {}", orderId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponseDTO(false, "Lỗi server: " + e.getMessage(), null));
         }

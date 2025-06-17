@@ -12,8 +12,6 @@ import java.util.List;
 public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> argumentResolvers) {
-        PageableHandlerMethodArgumentResolver resolver = new PageableHandlerMethodArgumentResolver();
-        resolver.setOneIndexedParameters(true);
-        argumentResolvers.add(resolver);
+        argumentResolvers.add(new PageableHandlerMethodArgumentResolver());
     }
 } 

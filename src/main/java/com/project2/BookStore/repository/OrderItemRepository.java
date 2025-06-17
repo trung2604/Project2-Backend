@@ -8,6 +8,9 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 @Repository
 public interface OrderItemRepository extends JpaRepository<OrderItem, String> {
     Page<OrderItem> findByOrderId(String orderId, Pageable pageable);
@@ -15,4 +18,6 @@ public interface OrderItemRepository extends JpaRepository<OrderItem, String> {
     @Modifying
     @Query("DELETE FROM OrderItem oi WHERE oi.order.id = ?1")
     void deleteByOrderId(String orderId);
+
+    List<OrderItem> findAllByOrderCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
 } 

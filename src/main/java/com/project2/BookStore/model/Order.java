@@ -68,7 +68,8 @@ public class Order {
         CONFIRMED,  // Đã xác nhận
         SHIPPING,   // Đang giao hàng
         DELIVERED,  // Đã giao hàng
-        CANCELLED   // Đã hủy
+        CANCELLED,  // Đã hủy
+        REFUNDED    // Đã hoàn tiền
     }
 
     public enum PaymentMethod {

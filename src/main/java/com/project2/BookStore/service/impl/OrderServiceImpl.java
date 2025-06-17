@@ -239,8 +239,8 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponseDTO getOrderById(String orderId) {
         log.info("Lấy thông tin đơn hàng: {}", orderId);
         try {
-            Order order = orderRepository.findById(orderId)
-                .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với ID: " + orderId));
+        Order order = orderRepository.findById(orderId)
+            .orElseThrow(() -> new ResourceNotFoundException("Không tìm thấy đơn hàng với ID: " + orderId));
             return convertToOrderResponseDTO(order);
         } catch (ResourceNotFoundException e) {
             log.warn("Không tìm thấy đơn hàng: {}", orderId);
@@ -256,7 +256,7 @@ public class OrderServiceImpl implements OrderService {
     public Page<OrderResponseDTO> getAllOrders(Pageable pageable) {
         log.info("Lấy danh sách tất cả đơn hàng");
         try {
-            Page<Order> orderPage = orderRepository.findAll(pageable);
+        Page<Order> orderPage = orderRepository.findAll(pageable);
             return orderPage.map(this::convertToOrderResponseDTO);
         } catch (Exception e) {
             log.error("Lỗi khi lấy danh sách đơn hàng: {}", e.getMessage(), e);
@@ -351,7 +351,7 @@ public class OrderServiceImpl implements OrderService {
     public Page<OrderResponseDTO> getOrdersByUser(String userId, Pageable pageable) {
         log.info("Lấy danh sách đơn hàng của user: {}", userId);
         try {
-            Page<Order> orderPage = orderRepository.findByUserId(userId, pageable);
+        Page<Order> orderPage = orderRepository.findByUserId(userId, pageable);
             return orderPage.map(this::convertToOrderResponseDTO);
         } catch (Exception e) {
             log.error("Lỗi khi lấy danh sách đơn hàng của user {}: {}", userId, e.getMessage(), e);
@@ -389,7 +389,7 @@ public class OrderServiceImpl implements OrderService {
                     }
                 })
                 .filter(dto -> dto != null)
-                .collect(Collectors.toList());
+            .collect(Collectors.toList());
 
             return new PageImpl<>(orderDTOs, pageable, ordersPage.getTotalElements());
         } catch (BadRequestException e) {
@@ -511,43 +511,43 @@ public class OrderServiceImpl implements OrderService {
                 throw new BadRequestException("Đơn hàng không được null");
             }
 
-            OrderResponseDTO dto = new OrderResponseDTO();
-            dto.setId(order.getId());
+        OrderResponseDTO dto = new OrderResponseDTO();
+        dto.setId(order.getId());
             dto.setUserId(order.getUser() != null ? order.getUser().getId() : null);
-            dto.setFullName(order.getFullName());
-            dto.setPhone(order.getPhone());
-            dto.setAddress(order.getAddress());
-            dto.setEmail(order.getEmail());
-            dto.setStatus(order.getStatus());
-            dto.setTotalAmount(order.getTotalAmount());
+        dto.setFullName(order.getFullName());
+        dto.setPhone(order.getPhone());
+        dto.setAddress(order.getAddress());
+        dto.setEmail(order.getEmail());
+        dto.setStatus(order.getStatus());
+        dto.setTotalAmount(order.getTotalAmount());
             dto.setPaymentMethod(order.getPaymentMethod() != null ? order.getPaymentMethod().name() : null);
             dto.setPaymentStatus(order.getPaymentStatus() != null ? order.getPaymentStatus().name() : null);
-            dto.setCreatedAt(order.getCreatedAt());
-            dto.setUpdatedAt(order.getUpdatedAt());
+        dto.setCreatedAt(order.getCreatedAt());
+        dto.setUpdatedAt(order.getUpdatedAt());
 
             if (order.getOrderItems() != null) {
                 dto.setItems(order.getOrderItems().stream()
-                    .map(item -> {
+                .map(item -> {
                         try {
                             if (item == null) {
                                 return null;
                             }
 
-                            OrderResponseDTO.OrderItemResponseDTO itemDTO = new OrderResponseDTO.OrderItemResponseDTO();
-                            itemDTO.setId(item.getId());
-                            
+                    OrderResponseDTO.OrderItemResponseDTO itemDTO = new OrderResponseDTO.OrderItemResponseDTO();
+                    itemDTO.setId(item.getId());
+                    
                             if (item.getBook() != null) {
                                 itemDTO.setBookId(item.getBook().getId());
                                 itemDTO.setBookTitle(item.getBook().getMainText());
                                 if (item.getBook().getImage() != null) {
                                     itemDTO.setBookImage(item.getBook().getImage().getMedium());
-                                }
-                            }
-                            
-                            itemDTO.setQuantity(item.getQuantity());
-                            itemDTO.setPrice(item.getPrice());
+                        }
+                    }
+                    
+                    itemDTO.setQuantity(item.getQuantity());
+                    itemDTO.setPrice(item.getPrice());
                             itemDTO.setSubtotal(item.getPrice() * item.getQuantity());
-                            return itemDTO;
+                    return itemDTO;
                         } catch (Exception e) {
                             log.error("Lỗi khi chuyển đổi chi tiết đơn hàng: {}", e.getMessage(), e);
                             return null;
@@ -559,7 +559,7 @@ public class OrderServiceImpl implements OrderService {
                 dto.setItems(new ArrayList<>());
             }
             
-            return dto;
+        return dto;
         } catch (Exception e) {
             log.error("Lỗi khi chuyển đổi đơn hàng sang DTO: {}", e.getMessage(), e);
             throw new OrderException("Lỗi khi chuyển đổi đơn hàng: " + e.getMessage());

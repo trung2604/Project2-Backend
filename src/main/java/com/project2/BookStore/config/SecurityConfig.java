@@ -91,6 +91,15 @@ public class SecurityConfig {
                             "/api/bookStore/category/{id}",
                             "/api/bookStore/category/paged"
                         ).permitAll()
+                        
+                        // Public Review APIs (không cần authentication) - Sử dụng antMatchers
+                        .requestMatchers(HttpMethod.GET, 
+                            "/api/bookStore/reviews/book/*/rating",
+                            "/api/bookStore/reviews/book/*/summary",
+                            "/api/bookStore/reviews/book/*",
+                            "/api/bookStore/reviews/*"
+                        ).permitAll()
+                        
                         // Admin APIs
                         .requestMatchers(
                             "/api/bookStore/book/add",
@@ -106,8 +115,15 @@ public class SecurityConfig {
                             "/api/bookStore/user/delete/*",
                             "/api/bookStore/statistics/*",
                             "/api/bookStore/orders/*/status",
-                            "/api/bookStore/order-items/*"
+                            "/api/bookStore/order-items/*",
+                            "/api/bookStore/reports/**",
+                            "/api/bookStore/orders/*/shipping",
+                            "/api/bookStore/orders/*/delivered",
+                            "/api/bookStore/orders/*/confirm",
+                            "/api/bookStore/reviews/admin",
+                            "/api/bookStore/reviews/admin/*/status"
                         ).hasRole("ADMIN")
+                        
                         // APIs requiring authentication (no ADMIN role needed)
                         .requestMatchers(
                             "/api/bookStore/user/account",
@@ -119,8 +135,15 @@ public class SecurityConfig {
                             "/api/bookStore/orders",
                             "/api/bookStore/orders/*",
                             "/api/bookStore/orders/user",
-                            "/api/bookStore/orders/*/cancel"
+                            "/api/bookStore/orders/*/cancel",
+                            "/api/bookStore/reviews",
+                            "/api/bookStore/reviews/user"
                         ).authenticated()
+                        
+                        // Review CRUD operations requiring authentication
+                        .requestMatchers(HttpMethod.PUT, "/api/bookStore/reviews/*").authenticated()
+                        .requestMatchers(HttpMethod.DELETE, "/api/bookStore/reviews/*").authenticated()
+                        
                         // All other APIs require authentication
                         .anyRequest().authenticated();
                 })
