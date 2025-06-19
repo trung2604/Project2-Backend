@@ -3,6 +3,7 @@ package com.project2.BookStore.controller;
 import com.project2.BookStore.dto.ApiResponseDTO;
 import com.project2.BookStore.dto.OrderRequestDTO;
 import com.project2.BookStore.dto.OrderResponseDTO;
+import com.project2.BookStore.dto.BuyNowRequestDTO;
 import com.project2.BookStore.model.Order;
 import com.project2.BookStore.repository.UserRepository;
 import com.project2.BookStore.service.OrderService;
@@ -94,6 +95,27 @@ public class OrderController {
             log.error("Error creating order: {}", e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(new ApiResponseDTO(false, "Lỗi server khi tạo đơn hàng", null));
+        }
+    }
+
+    @PostMapping("/buy-now")
+    public ResponseEntity<ApiResponseDTO> buyNow(@Valid @RequestBody BuyNowRequestDTO request) {
+        log.info("Creating buy-now order");
+        try {
+            String userId = getCurrentUserId();
+            log.debug("Creating buy-now order for user: {}", userId);
+            OrderResponseDTO order = orderService.buyNow(request, userId);
+            log.info("Buy-now order created successfully. OrderId: {}", order.getId());
+            return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new ApiResponseDTO(true, "Mua ngay thành công", order));
+        } catch (BadRequestException e) {
+            log.warn("Failed to create buy-now order: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                .body(new ApiResponseDTO(false, e.getMessage(), null));
+        } catch (Exception e) {
+            log.error("Error creating buy-now order: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new ApiResponseDTO(false, "Lỗi server khi mua ngay", null));
         }
     }
 

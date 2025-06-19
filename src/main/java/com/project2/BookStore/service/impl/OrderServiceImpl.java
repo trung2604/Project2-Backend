@@ -6,6 +6,7 @@ import com.project2.BookStore.dto.OrderItemWithBookDTO;
 import com.project2.BookStore.dto.OrderRequestDTO;
 import com.project2.BookStore.dto.OrderResponseDTO;
 import com.project2.BookStore.dto.OrderWithDetailsDTO;
+import com.project2.BookStore.dto.BuyNowRequestDTO;
 import com.project2.BookStore.exception.BadRequestException;
 import com.project2.BookStore.exception.OrderException;
 import com.project2.BookStore.exception.ResourceNotFoundException;
@@ -185,12 +186,13 @@ public class OrderServiceImpl implements OrderService {
                     throw new BadRequestException("Số lượng sách " + book.getMainText() + " trong kho không đủ");
                 }
 
-                // Validate cart item exists and quantity matches
-                CartItem cartItem = cartItemRepository.findByUser_IdAndBook_Id(userId, bookId)
-                    .orElseThrow(() -> new BadRequestException("Sách " + book.getMainText() + " không có trong giỏ hàng"));
-                
-                if (cartItem.getQuantity() < quantity) {
-                    throw new BadRequestException("Số lượng sách " + book.getMainText() + " trong giỏ hàng không đủ");
+                // Kiểm tra xem sách có trong giỏ hàng không (không bắt buộc)
+                CartItem cartItem = cartItemRepository.findByUser_IdAndBook_Id(userId, bookId).orElse(null);
+                if (cartItem != null) {
+                    // Nếu có trong giỏ hàng, kiểm tra số lượng
+                    if (cartItem.getQuantity() < quantity) {
+                        throw new BadRequestException("Số lượng sách " + book.getMainText() + " trong giỏ hàng không đủ");
+                    }
                 }
 
                 OrderItem orderItem = new OrderItem();
@@ -231,6 +233,111 @@ public class OrderServiceImpl implements OrderService {
         } catch (Exception e) {
             log.error("Lỗi không mong muốn khi tạo đơn hàng: {}", e.getMessage(), e);
             throw new BadRequestException("Không thể tạo đơn hàng: " + e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public OrderResponseDTO buyNow(BuyNowRequestDTO request, String userId) {
+        log.info("Bắt đầu mua ngay sách. UserId: {}, BookId: {}", userId, request.getBookId());
+        Order order = null;
+        try {
+            // Validate request
+            if (request == null) {
+                throw new BadRequestException("Dữ liệu mua ngay không được trống");
+            }
+
+            // Validate user info
+            if (request.getFullName() == null || request.getFullName().trim().isEmpty()) {
+                throw new BadRequestException("Họ tên người nhận không được trống");
+            }
+            if (request.getPhone() == null || request.getPhone().trim().isEmpty()) {
+                throw new BadRequestException("Số điện thoại không được trống");
+            }
+            if (request.getAddress() == null || request.getAddress().trim().isEmpty()) {
+                throw new BadRequestException("Địa chỉ không được trống");
+            }
+            if (request.getEmail() == null || request.getEmail().trim().isEmpty()) {
+                throw new BadRequestException("Email không được trống");
+            }
+            if (request.getPaymentMethod() == null || request.getPaymentMethod().trim().isEmpty()) {
+                throw new BadRequestException("Phương thức thanh toán không được trống");
+            }
+
+            // Get user
+            User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy người dùng"));
+
+            // Validate email matches user's email
+            if (!user.getEmail().equals(request.getEmail().trim())) {
+                throw new BadRequestException("Email không khớp với tài khoản");
+            }
+
+            // Validate book
+            if (request.getBookId() == null || request.getBookId().trim().isEmpty()) {
+                throw new BadRequestException("ID sách không được trống");
+            }
+
+            if (request.getQuantity() == null || request.getQuantity() <= 0) {
+                throw new BadRequestException("Số lượng sách phải lớn hơn 0");
+            }
+
+            String bookId = request.getBookId().trim();
+            Book book = bookRepository.findById(bookId)
+                .orElseThrow(() -> new BadRequestException("Không tìm thấy sách với ID: " + bookId));
+
+            if (book.getQuantity() < request.getQuantity()) {
+                throw new BadRequestException("Số lượng sách " + book.getMainText() + " trong kho không đủ");
+            }
+
+            // Create order
+            order = new Order();
+            order.setUser(user);
+            order.setFullName(request.getFullName().trim());
+            order.setPhone(request.getPhone().trim());
+            order.setAddress(request.getAddress().trim());
+            order.setEmail(request.getEmail().trim());
+            order.setStatus(Order.OrderStatus.PENDING);
+            
+            try {
+                order.setPaymentMethod(Order.PaymentMethod.valueOf(request.getPaymentMethod().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                throw new BadRequestException("Phương thức thanh toán không hợp lệ");
+            }
+            
+            order.setPaymentStatus(Order.PaymentStatus.PENDING);
+
+            // Create order item
+            OrderItem orderItem = new OrderItem();
+            orderItem.setOrder(order);
+            orderItem.setBook(book);
+            orderItem.setQuantity(request.getQuantity());
+            orderItem.setPrice(book.getPrice());
+            orderItem.setSubtotal(book.getPrice() * request.getQuantity());
+
+            // Update book quantity
+            book.setQuantity(book.getQuantity() - request.getQuantity());
+            book.setSold(book.getSold() + request.getQuantity());
+            bookRepository.save(book);
+
+            List<OrderItem> orderItems = new ArrayList<>();
+            orderItems.add(orderItem);
+            double totalAmount = orderItem.getSubtotal();
+
+            order.setTotalAmount(totalAmount);
+            order.setOrderItems(orderItems);
+            
+            // Save order
+            order = orderRepository.save(order);
+            log.info("Đơn hàng mua ngay được tạo thành công. OrderId: {}", order.getId());
+            
+            return convertToOrderResponseDTO(order);
+        } catch (BadRequestException e) {
+            log.warn("Lỗi khi mua ngay: {}", e.getMessage());
+            throw e;
+        } catch (Exception e) {
+            log.error("Lỗi không mong muốn khi mua ngay: {}", e.getMessage(), e);
+            throw new BadRequestException("Không thể mua ngay: " + e.getMessage());
         }
     }
 

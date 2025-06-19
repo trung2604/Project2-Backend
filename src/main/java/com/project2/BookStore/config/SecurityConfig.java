@@ -92,6 +92,9 @@ public class SecurityConfig {
                             "/api/bookStore/category/paged"
                         ).permitAll()
                         
+                        // VNPay IPN callback (public endpoint)
+                        .requestMatchers("/api/bookStore/payments/ipn").permitAll()
+                        
                         // Public Review APIs (không cần authentication) - Sử dụng antMatchers
                         .requestMatchers(HttpMethod.GET, 
                             "/api/bookStore/reviews/book/*/rating",
@@ -137,7 +140,9 @@ public class SecurityConfig {
                             "/api/bookStore/orders/user",
                             "/api/bookStore/orders/*/cancel",
                             "/api/bookStore/reviews",
-                            "/api/bookStore/reviews/user"
+                            "/api/bookStore/reviews/user",
+                            "/api/bookStore/payments/vnpay",
+                            "/api/bookStore/payments/status/*"
                         ).authenticated()
                         
                         // Review CRUD operations requiring authentication
